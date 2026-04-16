@@ -15,6 +15,7 @@ SAMPLE_DATA = "https://raw.githubusercontent.com/mobilityDCAT-AP/validation/refs
 
 @app.route("/validate/")
 def validate():
+    """Example endpoint to demonstrate the service"""
     import rdflib
     from helpers import generate_uuid
     from utils import store_graph
@@ -22,11 +23,15 @@ def validate():
     data_graph = rdflib.Graph()
     data_graph.parse(SAMPLE_DATA)
     data_graph_name = "http://mu.semte.ch/vocabularies/ext/data-graph/" + generate_uuid()
+    shacl_graph = rdflib.Graph()
+    shacl_graph.parse(SAMPLE_SHACL[0])
+    shacl_graph_name = "http://mu.semte.ch/vocabularies/ext/shacl-graph/" + generate_uuid()
 
     store_graph(data_graph, data_graph_name)
+    store_graph(shacl_graph, shacl_graph_name)
 
     input = shacl.ValidationInput(
-        shacl_graph=SAMPLE_SHACL[0],
+        shacl_graph=shacl_graph_name,
         data_graph=data_graph_name
     )
 

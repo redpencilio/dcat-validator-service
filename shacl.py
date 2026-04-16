@@ -29,11 +29,16 @@ def run_shacl_validation_task(task):
     if not input:
         raise Exception(f"Input {task.input} not found!")
 
-    shacl_graph = rdflib.Graph()
-    shacl_graph.parse(input.shacl_graph)
-
     store = sparqlstore.SPARQLStore(MU_SPARQL_ENDPOINT)
+    shacl_graph = rdflib.Graph(store, identifier=rdflib.URIRef(input.shacl_graph))
     data_graph = rdflib.Graph(store, identifier=rdflib.URIRef(input.data_graph))
+
+    # TODO: this is an ugly workaround for:
+    # https://github.com/RDFLib/pySHACL/blob/master/pyshacl/shapes_graph.py#L65
+    def ignore(*args, **kwargs):
+        pass
+    shacl_graph.add = ignore
+
 
     (conforms, result_graph, result_text) = pyshacl.validate(
         data_graph=data_graph,
