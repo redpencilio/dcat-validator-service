@@ -3,8 +3,11 @@ from string import Template
 import datetime
 from typing import Optional
 from enum import Enum
+import json
 
-from helpers import query, update, generate_uuid
+from helpers import generate_uuid
+from context_query import query, update
+from sudo_query import query_sudo, update_sudo
 from escape_helpers import sparql_escape_uri, sparql_escape_datetime, sparql_escape_string
 
 from utils import from_binding
@@ -21,6 +24,7 @@ class Task:
     input: str
     operation: str
     job_operation: str
+    headers: Optional[dict[str,str]] = None
 
     uri: str = None
     id: str = None
@@ -34,7 +38,18 @@ class Task:
         if not self.uri:
             self.uri = TASK_URI_PREFIX + self.id
 
-    def insert(self, job_operation, graph=TASKS_GRAPH):
+        if isinstance(self.headers, str):
+            self.load_headers(self.headers)
+
+    def load_headers(self, json_str):
+        header_dict = json.loads(json_str)
+        assert isinstance(header_dict, dict)
+        assert all(isinstance(key, str) for key in header_dict.keys())
+        assert all(isinstance(item, str) for item in header_dict.items())
+
+        self.headers = header_dict
+
+    def insert(self, graph=TASKS_GRAPH):
         query_template = Template("""
 PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
 PREFIX dct: <http://purl.org/dc/terms/>
@@ -57,6 +72,7 @@ INSERT DATA {
             task:operation $job_operation;
             adms:status <http://redpencil.data.gift/id/concept/JobStatus/scheduled> .
         $task_uri a task:Task ;
+            $headers
             mu:uuid $task_uuid ;
             dct:created $created ;
             dct:modified $updated ;
@@ -68,6 +84,7 @@ INSERT DATA {
     }
 }
   """)
+        headers = f"ext:headers {sparql_escape_string(json.dumps(self.headers))} ;\n" if self.headers else ""
         container_uuid = generate_uuid()
         container_uri = CONTAINER_URI_PREFIX + container_uuid
         job_uuid = generate_uuid()
@@ -85,10 +102,11 @@ INSERT DATA {
             updated=sparql_escape_datetime(updated),
             input=sparql_escape_uri(self.input),
             operation=sparql_escape_uri(self.operation),
-            job_operation=sparql_escape_uri(job_operation)
+            job_operation=sparql_escape_uri(self.job_operation),
+            headers=headers
         )
 
-        return update(query)
+        return update_sudo(query)
 
 
     def update_status(self, status: TaskStatus, graph=TASKS_GRAPH):
@@ -125,7 +143,7 @@ WHERE {
             modified=sparql_escape_datetime(time),
         )
 
-        update(query_string)
+        update_sudo(query_string)
 
 def find_actionable_task_of_types(type_urls, graph=None) -> Optional[Task]:
     query_template = Template("""
@@ -136,7 +154,7 @@ PREFIX task: <http://redpencil.data.gift/vocabularies/tasks/>
 PREFIX adms: <http://www.w3.org/ns/adms#>
 PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
 
-SELECT (?task as ?uri) (?uuid as ?id) ?created ?input ?operation ?job_operation WHERE {
+SELECT (?task as ?uri) (?uuid as ?id) ?created ?input ?operation ?job_operation ?headers WHERE {
     GRAPH $graph {
         ?task a task:Task ;
             dct:created ?created ;
@@ -145,6 +163,7 @@ SELECT (?task as ?uri) (?uuid as ?id) ?created ?input ?operation ?job_operation 
             mu:uuid ?uuid .
         OPTIONAL { ?task task:inputContainer/ext:content ?input}
         OPTIONAL {?task dct:isPartOf/task:operation ?job_operation}
+        OPTIONAL { ?task ext:headers ?headers }
         VALUES ?operation {$task_types}
     }
 } LIMIT 1
@@ -153,7 +172,7 @@ SELECT (?task as ?uri) (?uuid as ?id) ?created ?input ?operation ?job_operation 
         graph=sparql_escape_uri(graph) if graph else "?g",
         task_types = " ".join([sparql_escape_uri(uri) for uri in type_urls])
     )
-    query_res = query(query_string)
+    query_res = query_sudo(query_string)
 
     if not query_res["results"]["bindings"]:
         return None

@@ -3,6 +3,7 @@ from utils import listize
 import traceback
 from helpers import logger, update, generate_uuid
 from escape_helpers import sparql_escape_uri, sparql_escape_string
+from context_query import use_mu_headers
 
 from constants import TASKS_GRAPH, CONTAINER_URI_PREFIX, MU_APPLICATION_GRAPH
 from task import find_actionable_task_of_types, TaskStatus
@@ -20,7 +21,11 @@ def run_task(task):
 
     try:
         task.update_status(TaskStatus.BUSY)
-        results = runner(task)
+        if task.headers:
+            with use_mu_headers(task.headers):
+                results = runner(task)
+        else:
+            results = runner(task)
         attach_task_results_container(task, results)
         task.update_status(TaskStatus.SUCCESS)
     except Exception as e:

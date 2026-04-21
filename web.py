@@ -1,3 +1,4 @@
+from context_query import get_mu_headers
 from task import Task
 from flask import request
 
@@ -40,7 +41,8 @@ def validate():
     task = Task(
         input=input_uri,
         operation=SHACL_VALIDATION_OPERATION,
-        job_operation=SHACL_VALIDATION_JOB_OPERATION
+        job_operation=SHACL_VALIDATION_JOB_OPERATION,
+        headers=get_mu_headers()
     )
 
     # shacl.run_shacl_validation_task(task)
@@ -60,7 +62,7 @@ def validate():
     }
 
 
-@app.route("/jobs-delta")
+@app.route("/jobs-delta", methods=('POST',))
 def process_jobs_delta():
     from task_runner import run_tasks
     import threading
@@ -76,7 +78,9 @@ def process_jobs_delta():
     if not has_tasks:
         return "Can't do anything with this delta. Skipping.", 500
 
-    thread = threading.Thread(target=run_tasks)
-    thread.start()
+    # thread = threading.Thread(target=run_tasks)
+    # thread.start()
+
+    run_tasks()
 
     return "", 200
