@@ -17,3 +17,10 @@ SHACL_VALIDATION_JOB_OPERATION = "http://lblod.data.gift/id/jobs/concept/JobOper
 SHACL_VALIDATION_OPERATION = "http://mu.semte.ch/vocabularies/ext/ShaclValidationJob"
 SHACL_VALIDATION_RESULT_URI_PREFIX = "http://mu.semte.ch/vocabularies/ext/shacl-validation-result/"
 SHACL_VALIDATION_RESULT_GRAPH_URI_PREFIX = "http://mu.semte.ch/vocabularies/ext/shacl-validation-result-graph/"
+
+COVERAGE_ANALYSIS_JOB_OPERATION = "http://lblod.data.gift/id/jobs/concept/JobOperation/coverage-analysis-job"
+COVERAGE_ANALYSIS_OPERATION = "http://mu.semte.ch/vocabularies/ext/CoverageAnalysisJob"
+
+VALIDATION_SUMMARY_URI_PREFIX = "http://redpencil.data.gift/id/validation-summary/"
+TARGET_CLASS_SUMMARY_URI_PREFIX = "http://redpencil.data.gift/id/target-class-summary/"
+RULE_SUMMARY_URI_PREFIX = "http://redpencil.data.gift/id/rule-summary/"
