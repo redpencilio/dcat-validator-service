@@ -5,6 +5,7 @@ GRAPH_LOAD_BATCH_SIZE = 100
 MU_APPLICATION_GRAPH = os.environ.get("MU_APPLICATION_GRAPH", "http://mu.semte.ch/graphs/public")
 MU_SPARQL_ENDPOINT = os.environ.get("MU_SPARQL_ENDPOINT")
 
+PUBLIC_GRAPH = "http://mu.semte.ch/graphs/public"
 DATA_GRAPH = MU_APPLICATION_GRAPH
 TASKS_GRAPH = "http://mu.semte.ch/graphs/jobs"
 
@@ -20,6 +21,9 @@ SHACL_VALIDATION_RESULT_GRAPH_URI_PREFIX = "http://mu.semte.ch/vocabularies/ext/
 
 COVERAGE_ANALYSIS_JOB_OPERATION = "http://lblod.data.gift/id/jobs/concept/JobOperation/coverage-analysis-job"
 COVERAGE_ANALYSIS_OPERATION = "http://mu.semte.ch/vocabularies/ext/CoverageAnalysisJob"
+
+SHACL_REPORT_PREDICATE = "http://mu.semte.ch/vocabularies/ext/shaclReport"
+COVERAGE_REPORT_PREDICATE = "http://mu.semte.ch/vocabularies/ext/coverageReport"
 
 VALIDATION_SUMMARY_URI_PREFIX = "http://redpencil.data.gift/id/validation-summary/"
 TARGET_CLASS_SUMMARY_URI_PREFIX = "http://redpencil.data.gift/id/target-class-summary/"

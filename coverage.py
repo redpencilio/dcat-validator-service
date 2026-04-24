@@ -1,19 +1,22 @@
+from __future__ import annotations
 from typing import Optional
 from dataclasses import dataclass, field
-from string import Template
 from enum import Enum
 
-from helpers import query, update, generate_uuid
+from helpers import generate_uuid
+from sudo_query import query_sudo, update_sudo
 from escape_helpers import sparql_escape_uri, sparql_escape_string
 
 from constants import (
     DATA_GRAPH,
+    PUBLIC_GRAPH,
+    TASKS_GRAPH,
     COVERAGE_ANALYSIS_OPERATION,
+    COVERAGE_REPORT_PREDICATE,
     VALIDATION_SUMMARY_URI_PREFIX,
     TARGET_CLASS_SUMMARY_URI_PREFIX,
     RULE_SUMMARY_URI_PREFIX,
 )
-from shacl import get_input
 import task_runner
 
 
@@ -21,6 +24,13 @@ class Requirement(str, Enum):
     MANDATORY = "mandatory"
     RECOMMENDED = "recommended"
     OPTIONAL = "optional"
+
+
+SEVERITY = {
+    Requirement.MANDATORY: "http://www.w3.org/ns/shacl#Violation",
+    Requirement.RECOMMENDED: "http://www.w3.org/ns/shacl#Warning",
+    Requirement.OPTIONAL: "http://www.w3.org/ns/shacl#Info",
+}
 
 
 # mobilityDCAT-AP spec. Source:
@@ -141,6 +151,7 @@ class RuleViolation:
 @dataclass
 class ClassCoverage:
     class_uri: str
+    total_entities: int = 0
     rule_violations: list[RuleViolation] = field(default_factory=list)
 
 
@@ -150,13 +161,56 @@ class CoverageResult:
     class_coverages: list[ClassCoverage] = field(default_factory=list)
 
 
+def get_data_graph(input_uri: str, graph: str) -> Optional[str]:
+    """Resolve the data graph from either an ext:DCATValidationRequest
+    or an ext:ShaclValidationResult (following ext:validated)."""
+    q = f"""
+PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
+
+SELECT ?data_graph WHERE {{
+    GRAPH {sparql_escape_uri(graph)} {{
+        {{
+            {sparql_escape_uri(input_uri)} a ext:DCATValidationRequest ;
+                ext:dataGraph ?data_graph .
+        }} UNION {{
+            {sparql_escape_uri(input_uri)} a ext:ShaclValidationResult ;
+                ext:validated/ext:dataGraph ?data_graph .
+        }}
+    }}
+}} LIMIT 1
+"""
+    res = query_sudo(q)
+    bindings = res["results"]["bindings"]
+    return bindings[0]["data_graph"]["value"] if bindings else None
+
+
+def get_endpoint_url(task_uri: str) -> Optional[str]:
+    q = f"""
+PREFIX dct: <http://purl.org/dc/terms/>
+PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
+
+SELECT ?url WHERE {{
+    GRAPH {sparql_escape_uri(TASKS_GRAPH)} {{
+        {sparql_escape_uri(task_uri)} dct:isPartOf ?job .
+        ?job ext:endpointUrl ?url .
+    }}
+}} LIMIT 1
+"""
+    res = query_sudo(q)
+    bindings = res["results"]["bindings"]
+    return bindings[0]["url"]["value"] if bindings else None
+
+
 def run_coverage_analysis_task(task):
-    input = get_input(task.input, DATA_GRAPH)
-    if not input:
+    data_graph = get_data_graph(task.input, DATA_GRAPH)
+    if not data_graph:
         raise Exception(f"Input {task.input} not found!")
 
-    result = compute_coverage(data_graph=input.data_graph)
-    return save_summary(result, graph=DATA_GRAPH)
+    endpoint_url = get_endpoint_url(task.uri)
+    result = compute_coverage(data_graph=data_graph)
+    summary_uri = save_summary(result, endpoint_url=endpoint_url, graph=PUBLIC_GRAPH)
+    task_runner.link_report_to_job(task.uri, summary_uri, predicate_uri=COVERAGE_REPORT_PREDICATE, graph=TASKS_GRAPH)
+    return summary_uri
 
 
 task_runner.register(COVERAGE_ANALYSIS_OPERATION, run_coverage_analysis_task)
@@ -181,24 +235,22 @@ def compute_coverage(data_graph: str) -> CoverageResult:
                     total_entities=total,
                 )
                 rule_violations.append(rv)
-                if requirement == Requirement.MANDATORY:
-                    total_violations += rv.violation_count
+                total_violations += rv.violation_count
 
-        class_coverages.append(ClassCoverage(class_uri=class_uri, rule_violations=rule_violations))
+        class_coverages.append(ClassCoverage(class_uri=class_uri, total_entities=total, rule_violations=rule_violations))
 
     return CoverageResult(total_violations=total_violations, class_coverages=class_coverages)
 
 
 def count_entities(data_graph: str, class_uri: str) -> int:
-    q = Template("""
-SELECT (COUNT(DISTINCT ?s) as ?count) WHERE {
-    GRAPH $graph {
-        ?s a $class .
-    }
-}
-""").substitute(graph=sparql_escape_uri(data_graph), class_=sparql_escape_uri(class_uri)).replace("$class", sparql_escape_uri(class_uri))
-    # Template doesn't allow `class` as a key; swap manually.
-    res = query(q)
+    q = f"""
+SELECT (COUNT(DISTINCT ?s) as ?count) WHERE {{
+    GRAPH {sparql_escape_uri(data_graph)} {{
+        ?s a {sparql_escape_uri(class_uri)} .
+    }}
+}}
+"""
+    res = query_sudo(q)
     bindings = res["results"]["bindings"]
     return int(bindings[0]["count"]["value"]) if bindings else 0
 
@@ -217,11 +269,11 @@ SELECT ?prop (COUNT(DISTINCT ?s) as ?count) WHERE {{
     }}
 }} GROUP BY ?prop
 """
-    res = query(q)
+    res = query_sudo(q)
     return {b["prop"]["value"]: int(b["count"]["value"]) for b in res["results"]["bindings"]}
 
 
-def save_summary(result: CoverageResult, graph: str) -> str:
+def save_summary(result: CoverageResult, graph: str, endpoint_url: Optional[str] = None) -> str:
     """Write shv:ValidationSummary / TargetClassSummary / RuleSummary.
 
     Matches app-mobilitydcatap-validator/doc/model.ttl and
@@ -230,9 +282,11 @@ def save_summary(result: CoverageResult, graph: str) -> str:
     summary_uuid = generate_uuid()
     summary_uri = VALIDATION_SUMMARY_URI_PREFIX + summary_uuid
 
+    endpoint_triple = f"ext:endpointUrl {sparql_escape_string(endpoint_url)} ; " if endpoint_url else ""
     triples = [
         f"{sparql_escape_uri(summary_uri)} a shv:ValidationSummary ; "
         f"mu:uuid {sparql_escape_string(summary_uuid)} ; "
+        f"{endpoint_triple}"
         f"shv:totalViolations {result.total_violations} ."
     ]
 
@@ -245,12 +299,11 @@ def save_summary(result: CoverageResult, graph: str) -> str:
         triples.append(
             f"{sparql_escape_uri(tc_uri)} a shv:TargetClassSummary ; "
             f"mu:uuid {sparql_escape_string(tc_uuid)} ; "
-            f"shv:hasTargetClass {sparql_escape_uri(class_cov.class_uri)} ."
+            f"shv:hasTargetClass {sparql_escape_uri(class_cov.class_uri)} ; "
+            f"shv:resourceCount {class_cov.total_entities} ."
         )
 
         for rv in class_cov.rule_violations:
-            if rv.violation_count == 0:
-                continue  # nothing to report for a fully satisfied rule
             rs_uuid = generate_uuid()
             rs_uri = RULE_SUMMARY_URI_PREFIX + rs_uuid
             triples.append(
@@ -260,14 +313,13 @@ def save_summary(result: CoverageResult, graph: str) -> str:
                 f"{sparql_escape_uri(rs_uri)} a shv:RuleSummary ; "
                 f"mu:uuid {sparql_escape_string(rs_uuid)} ; "
                 f"shv:hasRuleConstraint {sparql_escape_uri(rv.property_uri)} ; "
-                f"shv:violationCount {rv.violation_count} ."
-                # TODO: shv:hasSeverity — map requirement (M/R/O) to sh:Violation/sh:Warning/sh:Info.
-                # TODO: shv:hasValidationResult — link to matching sh:ValidationResult entries
-                #       in the SHACL report graph so the UI can drill into offenders.
+                f"shv:violationCount {rv.violation_count} ; "
+                f"shv:hasSeverity {sparql_escape_uri(SEVERITY[rv.requirement])} ."
             )
 
     q = f"""
 PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
+PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
 PREFIX shv: <http://shacl.data.gift/shacl-validation#>
 
 INSERT DATA {{
@@ -276,8 +328,9 @@ INSERT DATA {{
     }}
 }}
 """
-    update(q)
+    update_sudo(q)
     return summary_uri
+
 
 
 # ---------------------------------------------------------------------------
@@ -303,7 +356,7 @@ SELECT ?s (GROUP_CONCAT(DISTINCT STR(?t); separator=",") as ?types) WHERE {{
 GROUP BY ?s
 HAVING (COUNT(DISTINCT ?t) > 1)
 """
-    res = query(q)
+    res = query_sudo(q)
     return [
         {"uri": b["s"]["value"], "types": b["types"]["value"].split(",")}
         for b in res["results"]["bindings"]
@@ -330,7 +383,7 @@ SELECT ?typo (COUNT(*) as ?count) WHERE {{
     }}
 }} GROUP BY ?typo
 """
-    res = query(q)
+    res = query_sudo(q)
     return [
         {
             "typo": b["typo"]["value"],

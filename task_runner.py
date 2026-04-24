@@ -91,3 +91,21 @@ WHERE {
     )
 
     update_sudo(container_query_string)
+
+
+def link_report_to_job(task_uri: str, report_uri: str, predicate_uri: str, graph=MU_APPLICATION_GRAPH):
+    q = f"""
+PREFIX dct: <http://purl.org/dc/terms/>
+
+INSERT {{
+    GRAPH {sparql_escape_uri(graph)} {{
+        ?job {sparql_escape_uri(predicate_uri)} {sparql_escape_uri(report_uri)} .
+    }}
+}}
+WHERE {{
+    GRAPH {sparql_escape_uri(graph)} {{
+        {sparql_escape_uri(task_uri)} dct:isPartOf ?job .
+    }}
+}}
+"""
+    update_sudo(q)

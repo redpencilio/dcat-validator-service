@@ -3,6 +3,7 @@ from task import Task
 from flask import request
 
 import shacl
+import coverage
 from constants import SHACL_VALIDATION_OPERATION, SHACL_VALIDATION_JOB_OPERATION
 
 # SAMPLE_SHACL = "https://raw.githubusercontent.com/mobilityDCAT-AP/mobilityDCAT-AP/refs/heads/gh-pages/releases/1.1.0/shaclShapes/mobilitydcat-ap_shacl_shapes.ttl"
@@ -67,7 +68,7 @@ def process_jobs_delta():
     from task_runner import run_tasks
     import threading
 
-    inserts = request.json[0]["inserts"]
+    inserts = [triple for changeset in request.json for triple in changeset["inserts"]]
     has_tasks = any(
         t
         for t in inserts
@@ -76,7 +77,7 @@ def process_jobs_delta():
         == "http://redpencil.data.gift/id/concept/JobStatus/scheduled"
     )
     if not has_tasks:
-        return "Can't do anything with this delta. Skipping.", 500
+        return "Can't do anything with this delta. Skipping.", 406
 
     thread = threading.Thread(target=run_tasks)
     thread.start()
