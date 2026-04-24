@@ -145,6 +145,31 @@ WHERE {
 
         update_sudo(query_string)
 
+    def get_job_uri(self, graph=TASKS_GRAPH):
+        query_template = Template("""
+PREFIX task: <http://redpencil.data.gift/vocabularies/tasks/>
+PREFIX dct: <http://purl.org/dc/terms/>
+PREFIX cogs: <http://vocab.deri.ie/cogs#>
+
+SELECT ?job WHERE {
+    GRAPH $graph {
+        $uri a task:Task ;
+            dct:isPartOf ?job .
+        ?job a cogs:Job .
+    }
+}
+        """)
+
+        query_string = query_template.substitute(
+            graph=sparql_escape_uri(graph),
+            uri=sparql_escape_uri(self.uri)
+        )
+        query_res = query_sudo(query_string)
+
+        binding = query_res["results"]["bindings"][0]
+
+        return binding["job"]["value"]
+
 def find_actionable_task_of_types(type_urls, graph=None) -> Optional[Task]:
     query_template = Template("""
 PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
