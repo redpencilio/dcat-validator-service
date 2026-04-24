@@ -6,7 +6,6 @@ from enum import Enum
 import json
 
 from helpers import generate_uuid
-from context_query import query, update
 from sudo_query import query_sudo, update_sudo
 from escape_helpers import sparql_escape_uri, sparql_escape_datetime, sparql_escape_string
 

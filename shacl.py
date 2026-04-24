@@ -9,7 +9,8 @@ import sparql_store
 
 from helpers import generate_uuid
 from escape_helpers import sparql_escape_uri, sparql_escape_string, sparql_escape_bool
-from context_query import query, update
+# from context_query import query, update
+from sudo_query import query_sudo as query, update_sudo as update
 
 from constants import DATA_GRAPH, SHACL_VALIDATION_OPERATION, SHACL_VALIDATION_INPUT_URI_PREFIX, MU_SPARQL_ENDPOINT, SHACL_VALIDATION_RESULT_URI_PREFIX, SHACL_VALIDATION_RESULT_GRAPH_URI_PREFIX
 from utils import from_binding, store_graph
