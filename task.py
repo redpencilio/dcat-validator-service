@@ -6,7 +6,6 @@ from enum import Enum
 import json
 
 from helpers import generate_uuid
-from context_query import query, update
 from sudo_query import query_sudo, update_sudo
 from escape_helpers import sparql_escape_uri, sparql_escape_datetime, sparql_escape_string
 
@@ -24,7 +23,7 @@ class Task:
     input: str
     operation: str
     job_operation: str
-    headers: Optional[dict[str,str]] = None
+    headers: Optional[dict] = None
 
     uri: str = None
     id: str = None
@@ -45,7 +44,7 @@ class Task:
         header_dict = json.loads(json_str)
         assert isinstance(header_dict, dict)
         assert all(isinstance(key, str) for key in header_dict.keys())
-        assert all(isinstance(item, str) for item in header_dict.items())
+        assert all(isinstance(value, str) for value in header_dict.values())
 
         self.headers = header_dict
 
@@ -145,6 +144,31 @@ WHERE {
 
         update_sudo(query_string)
 
+    def get_job_uri(self, graph=TASKS_GRAPH):
+        query_template = Template("""
+PREFIX task: <http://redpencil.data.gift/vocabularies/tasks/>
+PREFIX dct: <http://purl.org/dc/terms/>
+PREFIX cogs: <http://vocab.deri.ie/cogs#>
+
+SELECT ?job WHERE {
+    GRAPH $graph {
+        $uri a task:Task ;
+            dct:isPartOf ?job .
+        ?job a cogs:Job .
+    }
+}
+        """)
+
+        query_string = query_template.substitute(
+            graph=sparql_escape_uri(graph),
+            uri=sparql_escape_uri(self.uri)
+        )
+        query_res = query_sudo(query_string)
+
+        binding = query_res["results"]["bindings"][0]
+
+        return binding["job"]["value"]
+
 def find_actionable_task_of_types(type_urls, graph=None) -> Optional[Task]:
     query_template = Template("""
 PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
@@ -154,7 +178,7 @@ PREFIX task: <http://redpencil.data.gift/vocabularies/tasks/>
 PREFIX adms: <http://www.w3.org/ns/adms#>
 PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
 
-SELECT (?task as ?uri) (?uuid as ?id) ?created ?input ?operation ?job_operation ?headers WHERE {
+SELECT (?task as ?uri) (?uuid as ?id) ?created ?input ?operation ?job_operation WHERE {
     GRAPH $graph {
         ?task a task:Task ;
             dct:created ?created ;
@@ -162,7 +186,7 @@ SELECT (?task as ?uri) (?uuid as ?id) ?created ?input ?operation ?job_operation 
             task:operation ?operation ;
             mu:uuid ?uuid .
         OPTIONAL { ?task task:inputContainer/ext:content ?input}
-        OPTIONAL {?task dct:isPartOf/task:operation ?job_operation}
+        OPTIONAL { ?task dct:isPartOf/task:operation ?job_operation }
         OPTIONAL { ?task ext:headers ?headers }
         VALUES ?operation {$task_types}
     }

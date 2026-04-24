@@ -1,7 +1,8 @@
 from string import Template
 from utils import listize
 import traceback
-from helpers import logger, update, generate_uuid
+from helpers import logger, generate_uuid, log
+from sudo_query import update_sudo
 from escape_helpers import sparql_escape_uri, sparql_escape_string
 from context_query import use_mu_headers
 
@@ -21,21 +22,24 @@ def run_task(task):
 
     try:
         task.update_status(TaskStatus.BUSY)
+        log(f"Running task <{task.uri}> with operation <{task.operation}>")
         if task.headers:
             with use_mu_headers(task.headers):
                 results = runner(task)
         else:
             results = runner(task)
         attach_task_results_container(task, results)
+        log(f"Completed task <{task.uri}> with operation <{task.operation}>")
         task.update_status(TaskStatus.SUCCESS)
     except Exception as e:
-        print(f"Failed to run task <{task.uri}> with operation <{task.operation}>:")
+        log(f"Failed to run task <{task.uri}> with operation <{task.operation}>:")
         traceback.print_exc()
         task.update_status(TaskStatus.FAILED)
 
 def run_tasks():
 
     while True:
+        print("Looking for tasks...")
 
         actionable_task = find_actionable_task_of_types(
             _runners.keys(),
@@ -53,7 +57,7 @@ def run_tasks():
                 f"Problem while running task {actionable_task.uri}, operation {actionable_task.operation}"
             )
 
-def attach_task_results_container(task, results, graph=MU_APPLICATION_GRAPH):
+def attach_task_results_container(task, results, graph=TASKS_GRAPH):
     container_uuid = generate_uuid()
     container_uri = CONTAINER_URI_PREFIX + container_uuid
 
@@ -86,4 +90,4 @@ WHERE {
         results=", ".join([sparql_escape_uri(result) for result in listize(results)])
     )
 
-    update(container_query_string)
+    update_sudo(container_query_string)

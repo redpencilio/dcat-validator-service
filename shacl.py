@@ -4,10 +4,13 @@ from string import Template
 
 import pyshacl
 import rdflib
-from rdflib.plugins.stores import sparqlstore
+# from rdflib.plugins.stores import sparqlstore
+import sparql_store
 
-from helpers import query, update, generate_uuid
+from helpers import generate_uuid
 from escape_helpers import sparql_escape_uri, sparql_escape_string, sparql_escape_bool
+# from context_query import query, update
+from sudo_query import query_sudo as query, update_sudo as update
 
 from constants import DATA_GRAPH, SHACL_VALIDATION_OPERATION, SHACL_VALIDATION_INPUT_URI_PREFIX, MU_SPARQL_ENDPOINT, SHACL_VALIDATION_RESULT_URI_PREFIX, SHACL_VALIDATION_RESULT_GRAPH_URI_PREFIX
 from utils import from_binding, store_graph
@@ -15,7 +18,7 @@ import task_runner
 
 @dataclass
 class ValidationInput:
-    shacl_graph: str
+    # shacl_graph: str
     data_graph: str
 
 @dataclass
@@ -29,16 +32,21 @@ def run_shacl_validation_task(task):
     if not input:
         raise Exception(f"Input {task.input} not found!")
 
-    store = sparqlstore.SPARQLStore(MU_SPARQL_ENDPOINT)
-    shacl_graph = rdflib.Graph(store, identifier=rdflib.URIRef(input.shacl_graph))
-    data_graph = rdflib.Graph(store, identifier=rdflib.URIRef(input.data_graph))
+    store = sparql_store.SPARQLStore(MU_SPARQL_ENDPOINT, headers={'mu-auth-sudo': 'true'})
+
+    ds = rdflib.Dataset(store)
+    data_graph = ds.get_context(rdflib.URIRef(input.data_graph))
 
     # TODO: this is an ugly workaround for:
     # https://github.com/RDFLib/pySHACL/blob/master/pyshacl/shapes_graph.py#L65
-    def ignore(*args, **kwargs):
-        pass
-    shacl_graph.add = ignore
+    # def ignore(*args, **kwargs):
+        # pass
+    # shacl_graph.add = ignore
 
+    shacl_graph = rdflib.Graph()
+    shacl_graph.parse(
+        "https://raw.githubusercontent.com/mobilityDCAT-AP/mobilityDCAT-AP/refs/heads/gh-pages/releases/1.1.0/shaclShapes/mobilitydcat-ap_shacl_shapes.ttl"
+    )
 
     (conforms, result_graph, result_text) = pyshacl.validate(
         data_graph=data_graph,
@@ -56,7 +64,7 @@ def run_shacl_validation_task(task):
         result_text=result_text
     )
 
-    result_uri = save_result(result, task.input)
+    result_uri = save_result(result, task)
 
     # Store the graph after we stored the result so we don't lose track of which graph belongs to which result
     store_graph(result_graph, result_graph_uri)
@@ -69,10 +77,10 @@ def get_input(input_uri, graph=None) -> Optional[ValidationInput]:
     query_template = Template("""
 PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
 
-SELECT ?shacl_graph ?data_graph WHERE {
+SELECT ?data_graph WHERE {
     GRAPH $graph {
         $input_uri a ext:DCATValidationRequest ;
-            ext:shaclGraph ?shacl_graph ;
+            # ext:shaclGraph ?shacl_graph ;
             ext:dataGraph ?data_graph .
     }
 }
@@ -99,7 +107,7 @@ INSERT DATA {
     GRAPH $graph {
         $input_uri a ext:DCATValidationRequest ;
             mu:uuid $uuid ;
-            ext:shaclGraph $shacl_graph ;
+            # ext:shaclGraph $shacl_graph ;
             ext:dataGraph $data_graph .
     }
 }
@@ -112,7 +120,7 @@ INSERT DATA {
         graph=sparql_escape_uri(graph),
         input_uri=sparql_escape_uri(input_uri),
         uuid=sparql_escape_string(uuid),
-        shacl_graph=sparql_escape_uri(input.shacl_graph),
+        # shacl_graph=sparql_escape_uri(input.shacl_graph),
         data_graph=sparql_escape_uri(input.data_graph)
     )
 
@@ -120,13 +128,15 @@ INSERT DATA {
 
     return input_uri
 
-def save_result(result: ValidationResult, input, graph=DATA_GRAPH):
+def save_result(result: ValidationResult, task, graph=DATA_GRAPH):
     uuid = generate_uuid()
     uri = SHACL_VALIDATION_RESULT_URI_PREFIX + uuid
 
     query_template = Template("""
 PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
 PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
+PREFIX dct: <http://purl.org/dc/terms/>
+PREFIX cogs: <http://vocab.deri.ie/cogs#>
 
 INSERT DATA {
     GRAPH $graph {
@@ -134,6 +144,7 @@ INSERT DATA {
             mu:uuid $uuid ;
             # TODO: There is probably an existing vocab that covers this?
             ext:validated $input ;
+            ext:job $job ;
             ext:validationSuccess $success ;
             ext:resultGraph $result_graph ;
             ext:resultText $result_text .
@@ -144,7 +155,8 @@ INSERT DATA {
     query_string = query_template.substitute(
         graph=sparql_escape_uri(graph),
         result_uri=sparql_escape_uri(uri),
-        input=sparql_escape_uri(input),
+        input=sparql_escape_uri(task.input),
+        job=sparql_escape_uri(task.get_job_uri()),
         uuid=sparql_escape_string(uuid),
         success=sparql_escape_bool(result.success),
         result_graph=sparql_escape_uri(result.result_graph),

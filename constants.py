@@ -6,7 +6,7 @@ MU_APPLICATION_GRAPH = os.environ.get("MU_APPLICATION_GRAPH", "http://mu.semte.c
 MU_SPARQL_ENDPOINT = os.environ.get("MU_SPARQL_ENDPOINT")
 
 DATA_GRAPH = MU_APPLICATION_GRAPH
-TASKS_GRAPH = MU_APPLICATION_GRAPH
+TASKS_GRAPH = "http://mu.semte.ch/graphs/jobs"
 
 JOB_URI_PREFIX = "http://redpencil.data.gift/id/job/"
 TASK_URI_PREFIX = "http://redpencil.data.gift/id/task/"

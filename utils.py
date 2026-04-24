@@ -2,7 +2,8 @@ from itertools import islice
 from string import Template
 from constants import GRAPH_LOAD_BATCH_SIZE
 from escape_helpers import sparql_escape_uri
-from helpers import query, update
+# from context_query import query, update
+from sudo_query import query_sudo as query, update_sudo as update
 import rdflib
 import dataclasses
 
@@ -10,6 +11,7 @@ def from_binding(datacls, binding, **extra):
     values = {
         field.name: binding[field.name]["value"]
         for field in dataclasses.fields(datacls)
+        if field.name in binding
     }
     values.update(extra)
     return datacls(**values)
