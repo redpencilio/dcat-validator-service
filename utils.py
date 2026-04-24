@@ -11,6 +11,7 @@ def from_binding(datacls, binding, **extra):
     values = {
         field.name: binding[field.name]["value"]
         for field in dataclasses.fields(datacls)
+        if field.name in binding
     }
     values.update(extra)
     return datacls(**values)

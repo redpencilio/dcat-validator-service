@@ -178,7 +178,7 @@ PREFIX task: <http://redpencil.data.gift/vocabularies/tasks/>
 PREFIX adms: <http://www.w3.org/ns/adms#>
 PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
 
-SELECT (?task as ?uri) (?uuid as ?id) ?created ?input ?operation ?job_operation ?headers WHERE {
+SELECT (?task as ?uri) (?uuid as ?id) ?created ?input ?operation ?job_operation WHERE {
     GRAPH $graph {
         ?task a task:Task ;
             dct:created ?created ;

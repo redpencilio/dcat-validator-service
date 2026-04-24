@@ -77,10 +77,10 @@ def get_input(input_uri, graph=None) -> Optional[ValidationInput]:
     query_template = Template("""
 PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
 
-SELECT ?shacl_graph ?data_graph WHERE {
+SELECT ?data_graph WHERE {
     GRAPH $graph {
         $input_uri a ext:DCATValidationRequest ;
-            ext:shaclGraph ?shacl_graph ;
+            # ext:shaclGraph ?shacl_graph ;
             ext:dataGraph ?data_graph .
     }
 }

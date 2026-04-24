@@ -57,7 +57,7 @@ def run_tasks():
                 f"Problem while running task {actionable_task.uri}, operation {actionable_task.operation}"
             )
 
-def attach_task_results_container(task, results, graph=MU_APPLICATION_GRAPH):
+def attach_task_results_container(task, results, graph=TASKS_GRAPH):
     container_uuid = generate_uuid()
     container_uri = CONTAINER_URI_PREFIX + container_uuid
 
