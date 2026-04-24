@@ -4,7 +4,8 @@ from string import Template
 
 import pyshacl
 import rdflib
-from rdflib.plugins.stores import sparqlstore
+# from rdflib.plugins.stores import sparqlstore
+import sparql_store
 
 from helpers import generate_uuid
 from escape_helpers import sparql_escape_uri, sparql_escape_string, sparql_escape_bool
@@ -30,9 +31,10 @@ def run_shacl_validation_task(task):
     if not input:
         raise Exception(f"Input {task.input} not found!")
 
-    store = sparqlstore.SPARQLStore(MU_SPARQL_ENDPOINT)
-    # shacl_graph = rdflib.Graph(store, identifier=rdflib.URIRef(input.shacl_graph))
-    data_graph = rdflib.Graph(store, identifier=rdflib.URIRef(input.data_graph))
+    store = sparql_store.SPARQLStore(MU_SPARQL_ENDPOINT, headers={'mu-auth-sudo': 'true'})
+
+    ds = rdflib.Dataset(store)
+    data_graph = ds.get_context(rdflib.URIRef(input.data_graph))
 
     # TODO: this is an ugly workaround for:
     # https://github.com/RDFLib/pySHACL/blob/master/pyshacl/shapes_graph.py#L65
@@ -45,8 +47,6 @@ def run_shacl_validation_task(task):
         "https://raw.githubusercontent.com/mobilityDCAT-AP/mobilityDCAT-AP/refs/heads/gh-pages/releases/1.1.0/shaclShapes/mobilitydcat-ap_shacl_shapes.ttl"
     )
 
-    # print(shacl_graph.serialize(format='ttl'))
-
     (conforms, result_graph, result_text) = pyshacl.validate(
         data_graph=data_graph,
         shacl_graph=shacl_graph
@@ -56,8 +56,6 @@ def run_shacl_validation_task(task):
 
     result_graph_uuid = generate_uuid()
     result_graph_uri = SHACL_VALIDATION_RESULT_GRAPH_URI_PREFIX + result_graph_uuid
-
-    print(result_text)
 
     result = ValidationResult(
         success=conforms,
