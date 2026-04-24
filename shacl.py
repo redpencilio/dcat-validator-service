@@ -6,8 +6,9 @@ import pyshacl
 import rdflib
 from rdflib.plugins.stores import sparqlstore
 
-from helpers import query, update, generate_uuid
+from helpers import generate_uuid
 from escape_helpers import sparql_escape_uri, sparql_escape_string, sparql_escape_bool
+from context_query import query, update
 
 from constants import DATA_GRAPH, SHACL_VALIDATION_OPERATION, SHACL_VALIDATION_INPUT_URI_PREFIX, MU_SPARQL_ENDPOINT, SHACL_VALIDATION_RESULT_URI_PREFIX, SHACL_VALIDATION_RESULT_GRAPH_URI_PREFIX
 from utils import from_binding, store_graph
@@ -30,15 +31,21 @@ def run_shacl_validation_task(task):
         raise Exception(f"Input {task.input} not found!")
 
     store = sparqlstore.SPARQLStore(MU_SPARQL_ENDPOINT)
-    shacl_graph = rdflib.Graph(store, identifier=rdflib.URIRef(input.shacl_graph))
+    # shacl_graph = rdflib.Graph(store, identifier=rdflib.URIRef(input.shacl_graph))
     data_graph = rdflib.Graph(store, identifier=rdflib.URIRef(input.data_graph))
 
     # TODO: this is an ugly workaround for:
     # https://github.com/RDFLib/pySHACL/blob/master/pyshacl/shapes_graph.py#L65
-    def ignore(*args, **kwargs):
-        pass
-    shacl_graph.add = ignore
+    # def ignore(*args, **kwargs):
+        # pass
+    # shacl_graph.add = ignore
 
+    shacl_graph = rdflib.Graph()
+    shacl_graph.parse(
+        "https://raw.githubusercontent.com/mobilityDCAT-AP/mobilityDCAT-AP/refs/heads/gh-pages/releases/1.1.0/shaclShapes/mobilitydcat-ap_shacl_shapes.ttl"
+    )
+
+    # print(shacl_graph.serialize(format='ttl'))
 
     (conforms, result_graph, result_text) = pyshacl.validate(
         data_graph=data_graph,
@@ -49,6 +56,8 @@ def run_shacl_validation_task(task):
 
     result_graph_uuid = generate_uuid()
     result_graph_uri = SHACL_VALIDATION_RESULT_GRAPH_URI_PREFIX + result_graph_uuid
+
+    print(result_text)
 
     result = ValidationResult(
         success=conforms,

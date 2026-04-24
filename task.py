@@ -24,7 +24,7 @@ class Task:
     input: str
     operation: str
     job_operation: str
-    headers: Optional[dict[str,str]] = None
+    headers: Optional[dict] = None
 
     uri: str = None
     id: str = None
@@ -45,7 +45,7 @@ class Task:
         header_dict = json.loads(json_str)
         assert isinstance(header_dict, dict)
         assert all(isinstance(key, str) for key in header_dict.keys())
-        assert all(isinstance(item, str) for item in header_dict.items())
+        assert all(isinstance(value, str) for value in header_dict.values())
 
         self.headers = header_dict
 
@@ -162,7 +162,7 @@ SELECT (?task as ?uri) (?uuid as ?id) ?created ?input ?operation ?job_operation 
             task:operation ?operation ;
             mu:uuid ?uuid .
         OPTIONAL { ?task task:inputContainer/ext:content ?input}
-        OPTIONAL {?task dct:isPartOf/task:operation ?job_operation}
+        OPTIONAL { ?task dct:isPartOf/task:operation ?job_operation }
         OPTIONAL { ?task ext:headers ?headers }
         VALUES ?operation {$task_types}
     }

@@ -36,7 +36,7 @@ MU_HEADERS = [
     "MU-AUTH-USED-GROUPS"
 ]
 
-mu_headers: ContextVar[dict[str,str]] = ContextVar('mu_headers')
+mu_headers = ContextVar('mu_headers')
 
 def _get_mu_headers():
     return {

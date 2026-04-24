@@ -2,7 +2,7 @@ from itertools import islice
 from string import Template
 from constants import GRAPH_LOAD_BATCH_SIZE
 from escape_helpers import sparql_escape_uri
-from helpers import query, update
+from context_query import query, update
 import rdflib
 import dataclasses
 

@@ -78,9 +78,7 @@ def process_jobs_delta():
     if not has_tasks:
         return "Can't do anything with this delta. Skipping.", 500
 
-    # thread = threading.Thread(target=run_tasks)
-    # thread.start()
-
-    run_tasks()
+    thread = threading.Thread(target=run_tasks)
+    thread.start()
 
     return "", 200
