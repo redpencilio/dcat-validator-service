@@ -81,7 +81,7 @@ MOBILITY_DCAT_AP_SPEC = {
             "https://w3id.org/mobilitydcat-ap#transportMode",
         ],
         Requirement.OPTIONAL: [
-            "http://data.europa.eu/r5r/#applicableLegislation",
+            "http://data.europa.eu/r5r/applicableLegislation",
             "https://w3id.org/mobilitydcat-ap#assessmentResult",
             "http://purl.org/dc/terms/hasVersion",
             "http://purl.org/dc/terms/identifier",
