@@ -1,3 +1,9 @@
+<<<<<<< HEAD
 pyrightconfig.json
 .venv/
 .mu-template-stubs/
+=======
+.mu-template-stubs/
+.venv/
+pyrightconfig.json
+>>>>>>> c5a4646 (undo accidental formatting)
