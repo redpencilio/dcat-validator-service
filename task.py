@@ -107,6 +107,36 @@ INSERT DATA {
 
         return update_sudo(query)
 
+    def store_error(self, message: str, graph=TASKS_GRAPH):
+        error_uuid = generate_uuid()
+        error_uri = JOB_ERROR_URI_PREFIX + error_uuid
+        query_template = Template("""
+PREFIX oslc: <http://open-services.net/ns/core#>
+PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
+PREFIX task: <http://redpencil.data.gift/vocabularies/tasks/>
+PREFIX dct: <http://purl.org/dc/terms/>
+
+INSERT {
+    GRAPH $graph {
+        $error_uri a oslc:Error ;
+            mu:uuid $error_uuid ;
+            oslc:message $message .
+        ?job task:error $error_uri .
+    }
+}
+WHERE {
+    GRAPH $graph {
+        $task dct:isPartOf ?job .
+    }
+}""")
+        query_string = query_template.substitute(
+            graph=sparql_escape_uri(graph) if graph else "?g",
+            task=sparql_escape_uri(self.uri),
+            error_uri=sparql_escape_uri(error_uri),
+            error_uuid=sparql_escape_string(error_uuid),
+            message=sparql_escape_string(message),
+        )
+        update_sudo(query_string)
 
     def update_status(self, status: TaskStatus, graph=TASKS_GRAPH):
         time = datetime.datetime.now()

@@ -34,6 +34,7 @@ def run_task(task):
     except Exception as e:
         log(f"Failed to run task <{task.uri}> with operation <{task.operation}>:")
         traceback.print_exc()
+        task.store_error(str(e))
         task.update_status(TaskStatus.FAILED)
 
 def run_tasks():
