@@ -52,7 +52,7 @@ def run_shacl_validation_task(task):
 
     shacl_graph = rdflib.Graph()
     shacl_graph.parse(
-        "https://raw.githubusercontent.com/mobilityDCAT-AP/mobilityDCAT-AP/refs/heads/gh-pages/releases/1.1.0/shaclShapes/mobilitydcat-ap_shacl_shapes.ttl"
+        "https://raw.githubusercontent.com/mobilityDCAT-AP/mobilityDCAT-AP/gh-pages/releases/1.1.0/shaclShapes/mobilitydcat-ap_1.1.0_shacl_shapes.ttl"
     )
 
     (conforms, result_graph, result_text) = pyshacl.validate(
