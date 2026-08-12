@@ -1,0 +1,3 @@
+.mu-template-stubs/
+.venv/
+pyrightconfig.json

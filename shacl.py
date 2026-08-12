@@ -13,7 +13,7 @@ from escape_helpers import sparql_escape_uri, sparql_escape_string, sparql_escap
 from sudo_query import query_sudo as query, update_sudo as update
 
 from constants import (
-    DATA_GRAPH, PUBLIC_GRAPH, TASKS_GRAPH,
+    DATA_GRAPH, PUBLIC_GRAPH, SHACL_BASE_URL, SHACL_FILES, TASKS_GRAPH,
     SHACL_VALIDATION_OPERATION, SHACL_VALIDATION_INPUT_URI_PREFIX,
     MU_SPARQL_ENDPOINT, SHACL_VALIDATION_RESULT_URI_PREFIX,
     SHACL_VALIDATION_RESULT_GRAPH_URI_PREFIX,
@@ -51,9 +51,11 @@ def run_shacl_validation_task(task):
     # shacl_graph.add = ignore
 
     shacl_graph = rdflib.Graph()
-    shacl_graph.parse(
-        "https://raw.githubusercontent.com/mobilityDCAT-AP/mobilityDCAT-AP/refs/heads/gh-pages/releases/1.1.0/shaclShapes/mobilitydcat-ap_shacl_shapes.ttl"
-    )
+
+    for filename in SHACL_FILES:
+        url = f"{SHACL_BASE_URL}/{filename}"
+        shacl_graph.parse(url)
+
 
     (conforms, result_graph, result_text) = pyshacl.validate(
         data_graph=data_graph,
