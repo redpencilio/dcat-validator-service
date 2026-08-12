@@ -10,7 +10,7 @@ from sudo_query import query_sudo, update_sudo
 from escape_helpers import sparql_escape_uri, sparql_escape_datetime, sparql_escape_string
 
 from utils import from_binding
-from constants import TASKS_GRAPH, CONTAINER_URI_PREFIX, JOB_URI_PREFIX, TASK_URI_PREFIX
+from constants import TASKS_GRAPH, CONTAINER_URI_PREFIX, JOB_URI_PREFIX, TASK_URI_PREFIX, JOB_ERROR_URI_PREFIX
 
 class TaskStatus(Enum):
     BUSY = "http://redpencil.data.gift/id/concept/JobStatus/busy"

@@ -10,6 +10,7 @@ DATA_GRAPH = MU_APPLICATION_GRAPH
 TASKS_GRAPH = "http://mu.semte.ch/graphs/jobs"
 
 JOB_URI_PREFIX = "http://redpencil.data.gift/id/job/"
+JOB_ERROR_URI_PREFIX = "http://redpencil.data.gift/id/jobs/error/"
 TASK_URI_PREFIX = "http://redpencil.data.gift/id/task/"
 CONTAINER_URI_PREFIX = "http://redpencil.data.gift/id/container/"
 
