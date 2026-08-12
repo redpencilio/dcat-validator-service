@@ -2,10 +2,12 @@ import urllib.error
 
 import SPARQLWrapper.SPARQLExceptions
 
+from custom_exceptions import InputNotFoundError
+
 
 def format_human_readable_error(e: Exception) -> str:
     # These custom explicit errors starting with 'Input' are thrown when task input (harvested data graph) could not be found
-    if str(e).startswith("Input"):
+    if isinstance(e, InputNotFoundError):
         return (
             "Internal Error: The validator could not locate the harvested data graph."
         )
