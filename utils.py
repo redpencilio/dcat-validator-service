@@ -6,6 +6,7 @@ from escape_helpers import sparql_escape_uri
 from sudo_query import query_sudo as query, update_sudo as update
 import rdflib
 import dataclasses
+import json
 
 def from_binding(datacls, binding, **extra):
     values = {
@@ -49,3 +50,11 @@ def listize(object):
     else:
         return [object]
 
+def save_json_report(
+    report_dict,
+    output_path: str = "/app/shacl_report.json",
+):
+    with open(output_path, "w") as f:
+        json.dump(report_dict, f, indent=4)
+
+    print(f"Readable JSON report saved to {output_path}")
