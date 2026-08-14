@@ -5,10 +5,16 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 import rdflib
-from escape_helpers import sparql_escape_uri
+from escape_helpers import sparql_escape_string, sparql_escape_uri
+from helpers import generate_uuid
 from rdflib.namespace import RDF, SKOS
 
-from constants import DCAT_CLASSES
+from constants import (
+    CLASS_VOCAB_SUMMARY_URI_PREFIX,
+    DCAT_CLASSES,
+    VOCAB_SUMMARY_URI_PREFIX,
+    VOCAB_VIOLATION_SUMMARY_URI_PREFIX,
+)
 from sudo_query import query_sudo as query
 from sudo_query import update_sudo as update
 from utils import save_json_report
@@ -21,6 +27,7 @@ class VocabularyViolation:
     property_uri: str
     invalid_term: str
     violation_count: int
+    severity: str
 
 
 @dataclass
@@ -46,7 +53,7 @@ PROPERTY_MAPPING = {
     "network-coverage": "https://w3id.org/mobilitydcat-ap#networkCoverage",
     "georeferencing-method": "https://w3id.org/mobilitydcat-ap#georeferencingMethod",
     "intended-information-service": "https://w3id.org/mobilitydcat-ap#intendedInformationService",
-    "grammar": "https://w3id.org/mobilitydcat-ap#grammar"
+    "grammar": "https://w3id.org/mobilitydcat-ap#grammar",
 }
 
 
@@ -149,7 +156,73 @@ def get_property_violations(
                     property_uri=term_predicate,
                     invalid_term=used_term,
                     violation_count=count,
+                    severity="http://www.w3.org/ns/shacl#Violation",
                 )
             )
 
     return result
+
+
+def save_vocabulary_summary(
+    result: VocabularyResult, graph: str, endpoint_url: str | None = None
+) -> str:
+    """Write shv:ValidationSummary / TargetClassSummary / RuleSummary.
+
+    Matches app-mobilitydcatap-validator/doc/model.ttl and
+    config/resources/shacl-validation.lisp.
+    """
+    summary_uuid = generate_uuid()
+    summary_uri = VOCAB_SUMMARY_URI_PREFIX + summary_uuid
+
+    endpoint_triple = (
+        f"ext:endpointUrl {sparql_escape_string(endpoint_url)} ; "
+        if endpoint_url
+        else ""
+    )
+    triples = [
+        f"{sparql_escape_uri(summary_uri)} a shv:ValidationSummary ; "
+        f"mu:uuid {sparql_escape_string(summary_uuid)} ; "
+        f"{endpoint_triple}"
+        f"shv:totalViolations {result.total_violations} ."
+    ]
+
+    for class_cov in result.class_compliances:
+        tc_uuid = generate_uuid()
+        tc_uri = CLASS_VOCAB_SUMMARY_URI_PREFIX + tc_uuid
+        triples.append(
+            f"{sparql_escape_uri(summary_uri)} shv:hasTargetClassSummary {sparql_escape_uri(tc_uri)} ."
+        )
+        triples.append(
+            f"{sparql_escape_uri(tc_uri)} a shv:TargetClassSummary ; "
+            f"mu:uuid {sparql_escape_string(tc_uuid)} ; "
+            f"shv:hasTargetClass {sparql_escape_uri(class_cov.class_uri)} ; "
+            f"shv:resourceCount {class_cov.total_entities_checked} ."
+        )
+
+        for rv in class_cov.vocabulary_violations:
+            rs_uuid = generate_uuid()
+            rs_uri = VOCAB_VIOLATION_SUMMARY_URI_PREFIX + rs_uuid
+            triples.append(
+                f"{sparql_escape_uri(tc_uri)} shv:hasRuleSummary {sparql_escape_uri(rs_uri)} ."
+            )
+            triples.append(
+                f"{sparql_escape_uri(rs_uri)} a shv:RuleSummary ; "
+                f"mu:uuid {sparql_escape_string(rs_uuid)} ; "
+                f"shv:hasRuleConstraint {sparql_escape_uri(rv.property_uri)} ; "
+                f"shv:violationCount {rv.violation_count} ; "
+                f"shv:hasSeverity {sparql_escape_uri(rv.severity)} ."
+            )
+
+    q = f"""
+PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
+PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
+PREFIX shv: <http://shacl.data.gift/shacl-validation#>
+
+INSERT DATA {{
+    GRAPH {sparql_escape_uri(graph)} {{
+        {chr(10).join(triples)}
+    }}
+}}
+"""
+    update(q)
+    return summary_uri
