@@ -1,8 +1,10 @@
 from __future__ import annotations
+import os
 from typing import Optional
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from enum import Enum
 
+from controlled_vocabulary import compute_vocabulary_compliance, save_vocabulary_summary
 from helpers import generate_uuid
 from sudo_query import query_sudo, update_sudo
 from escape_helpers import sparql_escape_uri, sparql_escape_string
@@ -18,7 +20,9 @@ from constants import (
     RULE_SUMMARY_URI_PREFIX,
 )
 import task_runner
+from utils import save_json_report
 
+mode = os.getenv("MODE", "production")
 
 class Requirement(str, Enum):
     MANDATORY = "mandatory"
@@ -207,10 +211,13 @@ def run_coverage_analysis_task(task):
         raise Exception(f"Input {task.input} not found!")
 
     endpoint_url = get_endpoint_url(task.uri)
-    result = compute_coverage(data_graph=data_graph)
-    summary_uri = save_summary(result, endpoint_url=endpoint_url, graph=PUBLIC_GRAPH)
-    task_runner.link_report_to_job(task.uri, summary_uri, predicate_uri=COVERAGE_REPORT_PREDICATE, graph=TASKS_GRAPH)
-    return summary_uri
+    coverage_result = compute_coverage(data_graph=data_graph)
+    coverage_summary_uri = save_summary(coverage_result, endpoint_url=endpoint_url, graph=PUBLIC_GRAPH)
+    vocabulary_result = compute_vocabulary_compliance(data_graph_uri=data_graph)
+    vocabulary_summary_uri = save_vocabulary_summary(vocabulary_result, endpoint_url=endpoint_url, graph=PUBLIC_GRAPH)
+    print(f"[VOCABULARY URI]: {vocabulary_summary_uri} ")
+    task_runner.link_report_to_job(task.uri, coverage_summary_uri, predicate_uri=COVERAGE_REPORT_PREDICATE, graph=TASKS_GRAPH)
+    return coverage_summary_uri
 
 
 task_runner.register(COVERAGE_ANALYSIS_OPERATION, run_coverage_analysis_task)
@@ -239,7 +246,10 @@ def compute_coverage(data_graph: str) -> CoverageResult:
 
         class_coverages.append(ClassCoverage(class_uri=class_uri, total_entities=total, rule_violations=rule_violations))
 
-    return CoverageResult(total_violations=total_violations, class_coverages=class_coverages)
+    result = CoverageResult(total_violations=total_violations, class_coverages=class_coverages)
+    if mode == "development":
+        save_json_report(asdict(result), "/app/coverage_report.json")
+    return result
 
 
 def count_entities(data_graph: str, class_uri: str) -> int:
