@@ -1,3 +1,4 @@
+import os
 from typing import Optional
 from dataclasses import dataclass
 from string import Template
@@ -18,11 +19,10 @@ from constants import (
     MU_SPARQL_ENDPOINT, SHACL_VALIDATION_RESULT_URI_PREFIX,
     SHACL_VALIDATION_RESULT_GRAPH_URI_PREFIX,
     VALIDATION_SUMMARY_URI_PREFIX, TARGET_CLASS_SUMMARY_URI_PREFIX,
-    RULE_SUMMARY_URI_PREFIX, SHACL_REPORT_PREDICATE,
+    RULE_SUMMARY_URI_PREFIX, SHACL_REPORT_PREDICATE, DCAT_CLASSES
 )
 from utils import from_binding, store_graph, save_json_report
 import task_runner
-import os
 
 mode = os.getenv("MODE", "production")
 
@@ -60,9 +60,10 @@ def run_shacl_validation_task(task):
         shacl_graph.parse(url)
 
 
+
     (conforms, result_graph, result_text) = pyshacl.validate(
         data_graph=data_graph,
-        shacl_graph=shacl_graph
+        shacl_graph=shacl_graph,
     )
 
     result_graph = result_graph.skolemize(authority='http://mu.semte.ch', basepath='.well-known/genid/pyshacl-validation-result/')
@@ -87,14 +88,6 @@ def run_shacl_validation_task(task):
     return result_uri
 
 task_runner.register(SHACL_VALIDATION_OPERATION, run_shacl_validation_task)
-
-
-DCAT_CLASSES = [
-    "http://www.w3.org/ns/dcat#Catalog",
-    "http://www.w3.org/ns/dcat#Dataset",
-    "http://www.w3.org/ns/dcat#Distribution",
-    "http://www.w3.org/ns/dcat#CatalogRecord",
-]
 
 
 def aggregate_shacl_violations(result_graph_uri: str, data_graph_uri: str) -> dict:
