@@ -30,6 +30,13 @@ VALIDATION_SUMMARY_URI_PREFIX = "http://redpencil.data.gift/id/validation-summar
 TARGET_CLASS_SUMMARY_URI_PREFIX = "http://redpencil.data.gift/id/target-class-summary/"
 RULE_SUMMARY_URI_PREFIX = "http://redpencil.data.gift/id/rule-summary/"
 
+DCAT_CLASSES = [
+    "http://www.w3.org/ns/dcat#Catalog",
+    "http://www.w3.org/ns/dcat#Dataset",
+    "http://www.w3.org/ns/dcat#Distribution",
+    "http://www.w3.org/ns/dcat#CatalogRecord",
+]
+
 MOBILITY_DCAT_AP_VERSION = "1.1.0"
 SHACL_BASE_URL = "https://raw.githubusercontent.com/mobilityDCAT-AP/mobilityDCAT-AP/gh-pages"
 
@@ -40,7 +47,7 @@ if MOBILITY_DCAT_AP_VERSION == "1.1.0":
     SHACL_FILES = [
         "/releases/1.1.0/shaclShapes/mobilitydcat-ap_1.1.0_shacl_shapes.ttl",
         "/releases/1.1.0/shaclShapes/mobilitydcat-ap_1.1.0_shacl_range.ttl",
-        "/releases/1.1.0/shaclShapes/mobilitydcat-ap_1.1.0_shacl_mdr-vocabularies.shape.ttl"
+#        "/releases/1.1.0/shaclShapes/mobilitydcat-ap_1.1.0_shacl_mdr-vocabularies.shape.ttl"
     ]
     # You can find the shacl files for 3.0.0 here:
     # https://github.com/mobilityDCAT-AP/mobilityDCAT-AP/tree/gh-pages/drafts/latest/shaclShapes
