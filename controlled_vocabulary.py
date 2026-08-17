@@ -32,7 +32,7 @@ mode = os.getenv("MODE", "production")
 @dataclass
 class VocabularyViolation:
     property_uri: str
-    invalid_term: str
+    invalid_terms: list[str]
     violation_count: int
     severity: str
 
@@ -127,37 +127,44 @@ def get_property_violations(
     data_graph_uri: str, dcat_class: str, term_predicate: str
 ) -> list[VocabularyViolation]:
     q = f"""
-        SELECT ?term (COUNT(DISTINCT ?s) as ?count) WHERE {{
+        SELECT DISTINCT ?s ?term WHERE {{
             GRAPH {sparql_escape_uri(data_graph_uri)} {{
                 ?s a {sparql_escape_uri(dcat_class)};
                     {sparql_escape_uri(term_predicate)} ?term.
             }}
-        }} GROUP BY ?term
+        }}
     """
     query_res = query(q)
-    result: list[VocabularyViolation] = []
     bindings = query_res.get("results", {}).get("bindings", [])
+
+    invalid_terms = set()
+    non_compliant_resources = set()
 
     for binding in bindings:
         used_term = binding["term"]["value"]
-        count = int(binding["count"]["value"])
+        s = binding["s"]["value"]
 
         if used_term not in ALLOWED_VOCABULARIES[term_predicate]:
-            severity = SEVERITY[Requirement.OPTIONAL]
-            class_reqs = MOBILITY_DCAT_AP_SPEC.get(dcat_class, {})
-            for req, props in class_reqs.items():
-                if term_predicate in props:
-                    severity = SEVERITY[req]
-                    break
+            invalid_terms.add(used_term)
+            non_compliant_resources.add(s)
 
-            result.append(
-                VocabularyViolation(
-                    property_uri=term_predicate,
-                    invalid_term=used_term,
-                    violation_count=count,
-                    severity=severity,
-                )
+    result: list[VocabularyViolation] = []
+    if invalid_terms:
+        severity = SEVERITY[Requirement.OPTIONAL]
+        class_reqs = MOBILITY_DCAT_AP_SPEC.get(dcat_class, {})
+        for req, props in class_reqs.items():
+            if term_predicate in props:
+                severity = SEVERITY[req]
+                break
+
+        result.append(
+            VocabularyViolation(
+                property_uri=term_predicate,
+                invalid_terms=list(invalid_terms),
+                violation_count=len(non_compliant_resources),
+                severity=severity,
             )
+        )
 
     return result
 
@@ -211,7 +218,7 @@ def save_vocabulary_summary(
                 f"mu:uuid {sparql_escape_string(rs_uuid)} ; "
                 f"shv:hasRuleConstraint {sparql_escape_uri(rv.property_uri)} ; "
                 f"shv:violationCount {sparql_escape_int(rv.violation_count)} ; "
-                f"shv:message {sparql_escape_string(rv.invalid_term)} ; "
+                f"shv:message {sparql_escape_string(', '.join(rv.invalid_terms))} ; "
                 f"shv:hasSeverity {sparql_escape_uri(rv.severity)} ."
             )
 
