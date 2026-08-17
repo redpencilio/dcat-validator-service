@@ -5,20 +5,20 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 import rdflib
-from escape_helpers import sparql_escape_string, sparql_escape_uri
+from escape_helpers import sparql_escape_int, sparql_escape_string, sparql_escape_uri
 from helpers import generate_uuid
 from rdflib.namespace import RDF, SKOS
 
 import task_runner
 from constants import (
-    CLASS_VOCAB_SUMMARY_URI_PREFIX,
     DATA_GRAPH,
     DCAT_CLASSES,
     PUBLIC_GRAPH,
+    RULE_SUMMARY_URI_PREFIX,
+    TARGET_CLASS_SUMMARY_URI_PREFIX,
     TASKS_GRAPH,
+    VALIDATION_SUMMARY_URI_PREFIX,
     VOCAB_REPORT_PREDICATE,
-    VOCAB_SUMMARY_URI_PREFIX,
-    VOCAB_VIOLATION_SUMMARY_URI_PREFIX,
     VOCABULARY_ANALYSIS_OPERATION,
 )
 from sudo_query import query_sudo as query
@@ -177,7 +177,7 @@ def save_vocabulary_summary(
     config/resources/shacl-validation.lisp.
     """
     summary_uuid = generate_uuid()
-    summary_uri = VOCAB_SUMMARY_URI_PREFIX + summary_uuid
+    summary_uri = VALIDATION_SUMMARY_URI_PREFIX + summary_uuid
 
     endpoint_triple = (
         f"ext:endpointUrl {sparql_escape_string(endpoint_url)} ; "
@@ -189,13 +189,13 @@ def save_vocabulary_summary(
             f"{sparql_escape_uri(summary_uri)} a shv:ValidationSummary ; "
             f"mu:uuid {sparql_escape_string(summary_uuid)} ; "
             f"{endpoint_triple}"
-            f"shv:totalViolations {result.total_violations} ."
+            f"shv:totalViolations {sparql_escape_int(result.total_violations)} ."
         )
     ]
 
     for class_cov in result.class_compliances:
         tc_uuid = generate_uuid()
-        tc_uri = CLASS_VOCAB_SUMMARY_URI_PREFIX + tc_uuid
+        tc_uri = TARGET_CLASS_SUMMARY_URI_PREFIX + tc_uuid
         triples.append(
             f"{sparql_escape_uri(summary_uri)} shv:hasTargetClassSummary {sparql_escape_uri(tc_uri)} ."
         )
@@ -203,12 +203,12 @@ def save_vocabulary_summary(
             f"{sparql_escape_uri(tc_uri)} a shv:TargetClassSummary ; "
             f"mu:uuid {sparql_escape_string(tc_uuid)} ; "
             f"shv:hasTargetClass {sparql_escape_uri(class_cov.class_uri)} ; "
-            f"shv:resourceCount {class_cov.total_entities_checked} ."
+            f"shv:resourceCount {sparql_escape_int(class_cov.total_entities_checked)} ."
         )
 
         for rv in class_cov.vocabulary_violations:
             rs_uuid = generate_uuid()
-            rs_uri = VOCAB_VIOLATION_SUMMARY_URI_PREFIX + rs_uuid
+            rs_uri = RULE_SUMMARY_URI_PREFIX + rs_uuid
             triples.append(
                 f"{sparql_escape_uri(tc_uri)} shv:hasRuleSummary {sparql_escape_uri(rs_uri)} ."
             )
@@ -216,7 +216,8 @@ def save_vocabulary_summary(
                 f"{sparql_escape_uri(rs_uri)} a shv:RuleSummary ; "
                 f"mu:uuid {sparql_escape_string(rs_uuid)} ; "
                 f"shv:hasRuleConstraint {sparql_escape_uri(rv.property_uri)} ; "
-                f"shv:violationCount {rv.violation_count} ; "
+                f"shv:violationCount {sparql_escape_int(rv.violation_count)} ; "
+                f"shv:message {sparql_escape_string(rv.invalid_term)} ; "
                 f"shv:hasSeverity {sparql_escape_uri(rv.severity)} ."
             )
 
