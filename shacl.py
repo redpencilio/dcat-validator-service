@@ -14,7 +14,7 @@ from escape_helpers import sparql_escape_uri, sparql_escape_string, sparql_escap
 from sudo_query import query_sudo as query, update_sudo as update
 
 from constants import (
-    DATA_GRAPH, PUBLIC_GRAPH, SHACL_BASE_URL, SHACL_FILES, TASKS_GRAPH,
+    DATA_GRAPH, PUBLIC_GRAPH, SHACL_BASE_PATH, SHACL_FILES, TASKS_GRAPH,
     SHACL_VALIDATION_OPERATION, SHACL_VALIDATION_INPUT_URI_PREFIX,
     MU_SPARQL_ENDPOINT, SHACL_VALIDATION_RESULT_URI_PREFIX,
     SHACL_VALIDATION_RESULT_GRAPH_URI_PREFIX,
@@ -58,8 +58,8 @@ def run_shacl_validation_task(task):
     shacl_graph = rdflib.Graph()
 
     for filename in SHACL_FILES:
-        url = f"{SHACL_BASE_URL}/{filename}"
-        shacl_graph.parse(url)
+        path = os.path.join(SHACL_BASE_PATH, filename)
+        shacl_graph.parse(path)
 
     (conforms, result_graph, result_text) = pyshacl.validate(
         data_graph=data_graph,
