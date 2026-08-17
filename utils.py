@@ -1,12 +1,14 @@
+from __future__ import annotations
+
 from itertools import islice
-from string import Template
 from constants import GRAPH_LOAD_BATCH_SIZE
 from escape_helpers import sparql_escape_uri
-# from context_query import query, update
 from sudo_query import query_sudo as query, update_sudo as update
+from constants import TASKS_GRAPH
 import rdflib
 import dataclasses
 import json
+
 
 def from_binding(datacls, binding, **extra):
     values = {
@@ -58,3 +60,19 @@ def save_json_report(
         json.dump(report_dict, f, indent=4)
 
     print(f"Readable JSON report saved to {output_path}")
+
+def get_endpoint_url(task_uri: str) -> str | None:
+    q = f"""
+PREFIX dct: <http://purl.org/dc/terms/>
+PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
+
+SELECT ?url WHERE {{
+    GRAPH {sparql_escape_uri(TASKS_GRAPH)} {{
+        {sparql_escape_uri(task_uri)} dct:isPartOf ?job .
+        ?job ext:endpointUrl ?url .
+    }}
+}} LIMIT 1
+"""
+    res = query(q)
+    bindings = res.get("results", {}).get("bindings", [])
+    return bindings[0]["url"]["value"] if bindings else None

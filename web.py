@@ -4,6 +4,7 @@ from flask import request
 
 import shacl
 import coverage
+import controlled_vocabulary
 from constants import SHACL_VALIDATION_OPERATION, SHACL_VALIDATION_JOB_OPERATION
 
 # SAMPLE_SHACL = "https://raw.githubusercontent.com/mobilityDCAT-AP/mobilityDCAT-AP/refs/heads/gh-pages/releases/1.1.0/shaclShapes/mobilitydcat-ap_shacl_shapes.ttl"
@@ -14,6 +15,7 @@ SAMPLE_SHACL = [
 # SAMPLE_DATA = "https://raw.githubusercontent.com/mobilityDCAT-AP/validation/refs/heads/main/sample_data/baseline-dcat-ap/positives/B-P-03-full-minimal-chain.ttl"
 SAMPLE_DATA = "https://raw.githubusercontent.com/mobilityDCAT-AP/validation/refs/heads/main/sample_data/mobility/positives/M-P-04-full-mobility-catalog.ttl"
 SAMPLE_DATA = "https://raw.githubusercontent.com/mobilityDCAT-AP/validation/refs/heads/main/sample_data/mobility/positives/M-P-01-mandatory-homepage.ttl"
+
 
 @app.route("/validate/")
 def validate():
