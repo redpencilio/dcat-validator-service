@@ -9,15 +9,21 @@ from escape_helpers import sparql_escape_string, sparql_escape_uri
 from helpers import generate_uuid
 from rdflib.namespace import RDF, SKOS
 
+import task_runner
 from constants import (
     CLASS_VOCAB_SUMMARY_URI_PREFIX,
+    DATA_GRAPH,
     DCAT_CLASSES,
+    PUBLIC_GRAPH,
+    TASKS_GRAPH,
+    VOCAB_REPORT_PREDICATE,
     VOCAB_SUMMARY_URI_PREFIX,
     VOCAB_VIOLATION_SUMMARY_URI_PREFIX,
+    VOCABULARY_ANALYSIS_OPERATION,
 )
 from sudo_query import query_sudo as query
 from sudo_query import update_sudo as update
-from utils import save_json_report
+from utils import get_endpoint_url, save_json_report
 
 mode = os.getenv("MODE", "production")
 
@@ -96,7 +102,6 @@ def count_entities(data_graph_uri: str, dcat_class: str) -> int:
 
 
 def compute_vocabulary_compliance(data_graph_uri: str) -> VocabularyResult:
-
     class_compliances: list[ClassVocabularyCompliance] = []
     grand_total_violations = 0
 
@@ -180,10 +185,12 @@ def save_vocabulary_summary(
         else ""
     )
     triples = [
-        f"{sparql_escape_uri(summary_uri)} a shv:ValidationSummary ; "
-        f"mu:uuid {sparql_escape_string(summary_uuid)} ; "
-        f"{endpoint_triple}"
-        f"shv:totalViolations {result.total_violations} ."
+        (
+            f"{sparql_escape_uri(summary_uri)} a shv:ValidationSummary ; "
+            f"mu:uuid {sparql_escape_string(summary_uuid)} ; "
+            f"{endpoint_triple}"
+            f"shv:totalViolations {result.total_violations} ."
+        )
     ]
 
     for class_cov in result.class_compliances:
@@ -226,3 +233,49 @@ INSERT DATA {{
 """
     update(q)
     return summary_uri
+
+
+def get_data_graph(input_uri: str, graph: str) -> str | None:
+    """Resolve the data graph by tracing a Coverage Report (shv:ValidationSummary) back to the original request."""
+    q = f"""
+        PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
+        PREFIX dct: <http://purl.org/dc/terms/>
+        PREFIX task: <http://redpencil.data.gift/vocabularies/tasks/>
+
+        SELECT ?data_graph WHERE {{
+            GRAPH {sparql_escape_uri(TASKS_GRAPH)} {{
+                ?job ext:coverageReport {sparql_escape_uri(input_uri)} .
+                ?any_task dct:isPartOf ?job ;
+                          task:inputContainer/ext:content ?original_req .
+            }}
+            GRAPH {sparql_escape_uri(graph)} {{
+                ?original_req ext:dataGraph ?data_graph .
+            }}
+        }} LIMIT 1
+    """
+    res = query(q)
+    bindings = res.get("results", {}).get("bindings", [])
+    return bindings[0]["data_graph"]["value"] if bindings else None
+
+
+def run_vocabulary_analysis_task(task):
+    data_graph = get_data_graph(task.input, DATA_GRAPH)
+    if not data_graph:
+        raise Exception(f"Input {task.input} not found!")
+
+    endpoint_url = get_endpoint_url(task.uri)
+    vocabulary_result = compute_vocabulary_compliance(data_graph_uri=data_graph)
+    vocabulary_summary_uri = save_vocabulary_summary(
+        vocabulary_result, endpoint_url=endpoint_url, graph=PUBLIC_GRAPH
+    )
+
+    task_runner.link_report_to_job(
+        task.uri,
+        vocabulary_summary_uri,
+        predicate_uri=VOCAB_REPORT_PREDICATE,
+        graph=TASKS_GRAPH,
+    )
+    return vocabulary_summary_uri
+
+
+task_runner.register(VOCABULARY_ANALYSIS_OPERATION, run_vocabulary_analysis_task)

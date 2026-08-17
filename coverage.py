@@ -4,7 +4,6 @@ from typing import Optional
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 
-from controlled_vocabulary import compute_vocabulary_compliance, save_vocabulary_summary
 from helpers import generate_uuid
 from sudo_query import query_sudo, update_sudo
 from escape_helpers import sparql_escape_uri, sparql_escape_string
@@ -13,14 +12,14 @@ from constants import (
     DATA_GRAPH,
     PUBLIC_GRAPH,
     TASKS_GRAPH,
-    COVERAGE_ANALYSIS_OPERATION,
     COVERAGE_REPORT_PREDICATE,
     VALIDATION_SUMMARY_URI_PREFIX,
     TARGET_CLASS_SUMMARY_URI_PREFIX,
     RULE_SUMMARY_URI_PREFIX,
+    COVERAGE_ANALYSIS_OPERATION
 )
 import task_runner
-from utils import save_json_report
+from utils import save_json_report, get_endpoint_url
 
 mode = os.getenv("MODE", "production")
 
@@ -188,23 +187,6 @@ SELECT ?data_graph WHERE {{
     return bindings[0]["data_graph"]["value"] if bindings else None
 
 
-def get_endpoint_url(task_uri: str) -> Optional[str]:
-    q = f"""
-PREFIX dct: <http://purl.org/dc/terms/>
-PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
-
-SELECT ?url WHERE {{
-    GRAPH {sparql_escape_uri(TASKS_GRAPH)} {{
-        {sparql_escape_uri(task_uri)} dct:isPartOf ?job .
-        ?job ext:endpointUrl ?url .
-    }}
-}} LIMIT 1
-"""
-    res = query_sudo(q)
-    bindings = res["results"]["bindings"]
-    return bindings[0]["url"]["value"] if bindings else None
-
-
 def run_coverage_analysis_task(task):
     data_graph = get_data_graph(task.input, DATA_GRAPH)
     if not data_graph:
@@ -213,15 +195,10 @@ def run_coverage_analysis_task(task):
     endpoint_url = get_endpoint_url(task.uri)
     coverage_result = compute_coverage(data_graph=data_graph)
     coverage_summary_uri = save_summary(coverage_result, endpoint_url=endpoint_url, graph=PUBLIC_GRAPH)
-    vocabulary_result = compute_vocabulary_compliance(data_graph_uri=data_graph)
-    vocabulary_summary_uri = save_vocabulary_summary(vocabulary_result, endpoint_url=endpoint_url, graph=PUBLIC_GRAPH)
-    print(f"[VOCABULARY URI]: {vocabulary_summary_uri} ")
     task_runner.link_report_to_job(task.uri, coverage_summary_uri, predicate_uri=COVERAGE_REPORT_PREDICATE, graph=TASKS_GRAPH)
     return coverage_summary_uri
 
-
 task_runner.register(COVERAGE_ANALYSIS_OPERATION, run_coverage_analysis_task)
-
 
 def compute_coverage(data_graph: str) -> CoverageResult:
     class_coverages = []

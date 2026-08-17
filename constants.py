@@ -21,9 +21,11 @@ SHACL_VALIDATION_RESULT_GRAPH_URI_PREFIX = "http://mu.semte.ch/vocabularies/ext/
 
 COVERAGE_ANALYSIS_JOB_OPERATION = "http://lblod.data.gift/id/jobs/concept/JobOperation/coverage-analysis-job"
 COVERAGE_ANALYSIS_OPERATION = "http://mu.semte.ch/vocabularies/ext/CoverageAnalysisJob"
+VOCABULARY_ANALYSIS_OPERATION = "http://mu.semte.ch/vocabularies/ext/VocabularyAnalysisJob"
 
 SHACL_REPORT_PREDICATE = "http://mu.semte.ch/vocabularies/ext/shaclReport"
 COVERAGE_REPORT_PREDICATE = "http://mu.semte.ch/vocabularies/ext/coverageReport"
+VOCAB_REPORT_PREDICATE = "http://mu.semte.ch/vocabularies/ext/vocabularyReport"
 
 VALIDATION_SUMMARY_URI_PREFIX = "http://redpencil.data.gift/id/validation-summary/"
 TARGET_CLASS_SUMMARY_URI_PREFIX = "http://redpencil.data.gift/id/target-class-summary/"
