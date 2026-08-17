@@ -38,10 +38,6 @@ DCAT_CLASSES = [
     "http://www.w3.org/ns/dcat#CatalogRecord",
 ]
 
-VOCAB_SUMMARY_URI_PREFIX = "http://redpencil.data.gift/id/vocabulary-summary/"
-CLASS_VOCAB_SUMMARY_URI_PREFIX = "http://redpencil.data.gift/id/class-vocabulary-summary/"
-VOCAB_VIOLATION_SUMMARY_URI_PREFIX = "http://redpencil.data.gift/id/vocabulary-violation-summary/"
-
 MOBILITY_DCAT_AP_VERSION = "1.1.0"
 SHACL_BASE_URL = "https://raw.githubusercontent.com/mobilityDCAT-AP/mobilityDCAT-AP/gh-pages"
 
