@@ -21,6 +21,7 @@ from constants import (
     VOCAB_REPORT_PREDICATE,
     VOCABULARY_ANALYSIS_OPERATION,
 )
+from spec import MOBILITY_DCAT_AP_SPEC, PROPERTY_MAPPING, SEVERITY, Requirement
 from sudo_query import query_sudo as query
 from sudo_query import update_sudo as update
 from utils import get_endpoint_url, save_json_report
@@ -47,20 +48,6 @@ class ClassVocabularyCompliance:
 class VocabularyResult:
     total_violations: int
     class_compliances: list[ClassVocabularyCompliance] = field(default_factory=list)
-
-
-PROPERTY_MAPPING = {
-    # File Stem: Predicate URI
-    "transport-mode": "https://w3id.org/mobilitydcat-ap#transportMode",
-    "mobility-theme": "https://w3id.org/mobilitydcat-ap#mobilityTheme",
-    "mobility-data-standard": "https://w3id.org/mobilitydcat-ap#mobilityDataStandard",
-    "application-layer-protocol": "https://w3id.org/mobilitydcat-ap#applicationLayerProtocol",
-    "communication-method": "https://w3id.org/mobilitydcat-ap#communicationMethod",
-    "network-coverage": "https://w3id.org/mobilitydcat-ap#networkCoverage",
-    "georeferencing-method": "https://w3id.org/mobilitydcat-ap#georeferencingMethod",
-    "intended-information-service": "https://w3id.org/mobilitydcat-ap#intendedInformationService",
-    "grammar": "https://w3id.org/mobilitydcat-ap#grammar",
-}
 
 
 def get_vocabulary_dict() -> dict[str, str]:
@@ -156,12 +143,19 @@ def get_property_violations(
         count = int(binding["count"]["value"])
 
         if used_term not in ALLOWED_VOCABULARIES[term_predicate]:
+            severity = SEVERITY[Requirement.OPTIONAL]
+            class_reqs = MOBILITY_DCAT_AP_SPEC.get(dcat_class, {})
+            for req, props in class_reqs.items():
+                if term_predicate in props:
+                    severity = SEVERITY[req]
+                    break
+
             result.append(
                 VocabularyViolation(
                     property_uri=term_predicate,
                     invalid_term=used_term,
                     violation_count=count,
-                    severity="http://www.w3.org/ns/shacl#Violation",
+                    severity=severity,
                 )
             )
 
