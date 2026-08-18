@@ -1,13 +1,12 @@
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-import rdflib
 from escape_helpers import sparql_escape_int, sparql_escape_string, sparql_escape_uri
 from helpers import generate_uuid
-from rdflib.namespace import RDF, SKOS
 
 import task_runner
 from constants import (
@@ -21,7 +20,10 @@ from constants import (
     VOCAB_REPORT_PREDICATE,
     VOCABULARY_ANALYSIS_OPERATION,
 )
-from spec import MOBILITY_DCAT_AP_SPEC, PROPERTY_MAPPING, SEVERITY, Requirement
+from spec import (
+    MOBILITY_DCAT_AP_SPEC,
+    SEVERITY,
+)
 from sudo_query import query_sudo as query
 from sudo_query import update_sudo as update
 from utils import get_endpoint_url, save_json_report
@@ -50,26 +52,34 @@ class VocabularyResult:
     class_compliances: list[ClassVocabularyCompliance] = field(default_factory=list)
 
 
-def get_vocabulary_dict() -> dict[str, str]:
-    vocabulary_dict = {}
-    vocabularies_path = Path("/app/vocabularies")
-    for vocab_file in vocabularies_path.iterdir():
-        if vocab_file.is_file() and vocab_file.name.endswith(".ttl"):
-            predicate = PROPERTY_MAPPING.get(vocab_file.stem)
-            if not predicate:
-                print(f"Skipping {vocab_file.name}: not found in PROPERTY_MAPPING")
-                continue
+def get_vocabulary_dict() -> dict[str, set[str]]:
+    vocab_json_path = Path(
+        os.environ.get(
+            "VOCABULARIES_JSON", Path(__file__).resolve().parent / "vocabularies.json"
+        )
+    )
 
-            g = rdflib.Graph()
-            g.parse(vocab_file.absolute(), format="turtle")
-            allowed_set = set()
+    if not vocab_json_path.exists() or vocab_json_path.stat().st_size == 0:
+        print(
+            f"{vocab_json_path.name} not found. Generating from source vocabularies..."
+        )
+        try:
+            from generate_vocabularies import generate_vocabulary_dict
 
-            for term in g.subjects(predicate=RDF.type, object=SKOS.Concept):
-                allowed_set.add(str(term))
+            raw_dict = generate_vocabulary_dict(output_path=vocab_json_path)
+            return {k: set(v) for k, v in raw_dict.items()}
+        except Exception as e:
+            print(f"Error generating vocabulary dictionary: {e}")
+            return {}
 
-            vocabulary_dict[predicate] = allowed_set
-
-    return vocabulary_dict
+    print(f"Loading controlled vocabularies from {vocab_json_path.name}...")
+    try:
+        with open(vocab_json_path, "r", encoding="utf-8") as f:
+            cached_dict = json.load(f)
+        return {k: set(v) for k, v in cached_dict.items()}
+    except Exception as e:
+        print(f"Error loading {vocab_json_path}: {e}")
+        return {}
 
 
 ALLOWED_VOCABULARIES = get_vocabulary_dict()
@@ -126,47 +136,93 @@ def compute_vocabulary_compliance(data_graph_uri: str) -> VocabularyResult:
 def get_property_violations(
     data_graph_uri: str, dcat_class: str, term_predicate: str
 ) -> list[VocabularyViolation]:
+    # Check if this property is applicable to this DCAT class
+    class_reqs = MOBILITY_DCAT_AP_SPEC.get(dcat_class, {})
+    severity = None
+    for req, props in class_reqs.items():
+        if term_predicate in props:
+            severity = SEVERITY[req]
+            break
+
+    if not severity:
+        return []
+
     q = f"""
-        SELECT DISTINCT ?s ?term WHERE {{
+        PREFIX dct: <http://purl.org/dc/terms/>
+        PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+        SELECT DISTINCT ?s ?term ?identifier WHERE {{
             GRAPH {sparql_escape_uri(data_graph_uri)} {{
                 ?s a {sparql_escape_uri(dcat_class)};
                     {sparql_escape_uri(term_predicate)} ?term.
+                OPTIONAL {{
+                    ?term dct:identifier | skos:exactMatch | skos:inScheme ?identifier .
+                    FILTER(isIRI(?identifier))
+                }}
             }}
         }}
     """
+    if mode == "development":
+        print(f"[QUERY]: {q}")
     query_res = query(q)
     bindings = query_res.get("results", {}).get("bindings", [])
 
     invalid_terms = set()
     non_compliant_resources = set()
 
+    # Group identifiers by the term node to support blank nodes with multiple properties
+    terms_map = {}
     for binding in bindings:
-        used_term = binding["term"]["value"]
         s = binding["s"]["value"]
+        term_val = binding["term"]["value"]
+        term_type = binding["term"]["type"]
+        identifier = binding.get("identifier", {}).get("value")
 
-        if used_term not in ALLOWED_VOCABULARIES[term_predicate]:
-            invalid_terms.add(used_term)
+        key = (s, term_val, term_type)
+        if key not in terms_map:
+            terms_map[key] = set()
+        if identifier:
+            terms_map[key].add(identifier)
+
+    allowed = ALLOWED_VOCABULARIES[term_predicate]
+
+    for (s, term_val, term_type), identifiers in terms_map.items():
+        # If it's a blank node (skolemized or not) and has NO identifiers, just let it pass.
+        # (the publisher didn't provide an invalid term, they just used a blank node wrapper)
+        is_blank_node = term_type == "bnode" or ".well-known/genid" in term_val
+        if is_blank_node and not identifiers:
+            continue
+
+        # First check if the term itself is a valid URI
+        if term_type == "uri" and term_val in allowed:
+            continue
+
+        # Then check if any of its identifiers map to the allowed vocabulary
+        is_valid = False
+        if identifiers:
+            for identifier in identifiers:
+                if identifier in allowed:
+                    is_valid = True
+                    break
+        else:
+            # If it's not a blank node and has no nested identifiers, we check the term itself
+            is_valid = term_type == "uri" and term_val in allowed
+
+        if not is_valid:
+            if identifiers:
+                for identifier in identifiers:
+                    invalid_terms.add(identifier)
+            else:
+                invalid_terms.add(term_val)
             non_compliant_resources.add(s)
 
-    result: list[VocabularyViolation] = []
-    if invalid_terms:
-        severity = SEVERITY[Requirement.OPTIONAL]
-        class_reqs = MOBILITY_DCAT_AP_SPEC.get(dcat_class, {})
-        for req, props in class_reqs.items():
-            if term_predicate in props:
-                severity = SEVERITY[req]
-                break
-
-        result.append(
-            VocabularyViolation(
-                property_uri=term_predicate,
-                invalid_terms=list(invalid_terms),
-                violation_count=len(non_compliant_resources),
-                severity=severity,
-            )
+    return [
+        VocabularyViolation(
+            property_uri=term_predicate,
+            invalid_terms=list(invalid_terms),
+            violation_count=len(non_compliant_resources),
+            severity=severity,
         )
-
-    return result
+    ]
 
 
 def save_vocabulary_summary(
@@ -210,6 +266,13 @@ def save_vocabulary_summary(
         for rv in class_cov.vocabulary_violations:
             rs_uuid = generate_uuid()
             rs_uri = RULE_SUMMARY_URI_PREFIX + rs_uuid
+
+            message_triple = (
+                f"shv:message {sparql_escape_string(', '.join(rv.invalid_terms))} ; "
+                if rv.invalid_terms
+                else ""
+            )
+
             triples.append(
                 f"{sparql_escape_uri(tc_uri)} shv:hasRuleSummary {sparql_escape_uri(rs_uri)} ."
             )
@@ -218,7 +281,7 @@ def save_vocabulary_summary(
                 f"mu:uuid {sparql_escape_string(rs_uuid)} ; "
                 f"shv:hasRuleConstraint {sparql_escape_uri(rv.property_uri)} ; "
                 f"shv:violationCount {sparql_escape_int(rv.violation_count)} ; "
-                f"shv:message {sparql_escape_string(', '.join(rv.invalid_terms))} ; "
+                f"{message_triple}"
                 f"shv:hasSeverity {sparql_escape_uri(rv.severity)} ."
             )
 

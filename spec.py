@@ -145,15 +145,30 @@ MOBILITY_DCAT_AP_SPEC = {
     },
 }
 
-PROPERTY_MAPPING = {
-    # File Stem: Predicate URI
-    "transport-mode": "https://w3id.org/mobilitydcat-ap#transportMode",
-    "mobility-theme": "https://w3id.org/mobilitydcat-ap#mobilityTheme",
-    "mobility-data-standard": "https://w3id.org/mobilitydcat-ap#mobilityDataStandard",
-    "application-layer-protocol": "https://w3id.org/mobilitydcat-ap#applicationLayerProtocol",
-    "communication-method": "https://w3id.org/mobilitydcat-ap#communicationMethod",
-    "network-coverage": "https://w3id.org/mobilitydcat-ap#networkCoverage",
-    "georeferencing-method": "https://w3id.org/mobilitydcat-ap#georeferencingMethod",
-    "intended-information-service": "https://w3id.org/mobilitydcat-ap#intendedInformationService",
-    "grammar": "https://w3id.org/mobilitydcat-ap#grammar",
+VOC_PROPERTY_MAPPING = {
+    # File Stem: Predicate URI(s)
+    "transport-mode": ["https://w3id.org/mobilitydcat-ap#transportMode"],
+    "mobility-theme": ["https://w3id.org/mobilitydcat-ap#mobilityTheme"],
+    "mobility-data-standard": ["https://w3id.org/mobilitydcat-ap#mobilityDataStandard"],
+    "application-layer-protocol": [
+        "https://w3id.org/mobilitydcat-ap#applicationLayerProtocol"
+    ],
+    "communication-method": ["https://w3id.org/mobilitydcat-ap#communicationMethod"],
+    "network-coverage": ["https://w3id.org/mobilitydcat-ap#networkCoverage"],
+    "georeferencing-method": ["https://w3id.org/mobilitydcat-ap#georeferencingMethod"],
+    "intended-information-service": [
+        "https://w3id.org/mobilitydcat-ap#intendedInformationService"
+    ],
+    "grammar": ["https://w3id.org/mobilitydcat-ap#grammar"],
+    "data-theme-skos": [
+        "http://www.w3.org/ns/dcat#theme",
+        "http://www.w3.org/ns/dcat#themeTaxonomy",
+    ],
+    "frequencies-skos": ["http://purl.org/dc/terms/accrualPeriodicity"],
+    "filetypes-skos": ["http://purl.org/dc/terms/format"],
+    "languages-skos": ["http://purl.org/dc/terms/language"],
+    "continents-skos": ["http://purl.org/dc/terms/spatial"],
+    "countries-skos": ["http://purl.org/dc/terms/spatial"],
+    "places-skos": ["http://purl.org/dc/terms/spatial"],
+    "NUTS": ["http://purl.org/dc/terms/spatial"],
 }
