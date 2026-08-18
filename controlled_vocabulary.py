@@ -215,10 +215,17 @@ def get_property_violations(
                 invalid_terms.add(term_val)
             non_compliant_resources.add(s)
 
+    formatted_invalid_terms = sorted(invalid_terms)
+    if len(formatted_invalid_terms) > 10:
+        extra_count = len(formatted_invalid_terms) - 10
+        formatted_invalid_terms = formatted_invalid_terms[:10] + [
+            f"(+{extra_count} more)"
+        ]
+
     return [
         VocabularyViolation(
             property_uri=term_predicate,
-            invalid_terms=list(invalid_terms),
+            invalid_terms=formatted_invalid_terms,
             violation_count=len(non_compliant_resources),
             severity=severity,
         )
