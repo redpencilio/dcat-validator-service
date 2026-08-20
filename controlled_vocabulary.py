@@ -85,6 +85,18 @@ def get_vocabulary_dict() -> dict[str, set[str]]:
 
 ALLOWED_VOCABULARIES = get_vocabulary_dict()
 
+AT_LEAST_ONE_VOCAB_PROPERTIES: set[str] = {
+    "https://w3id.org/mobilitydcat-ap#mobilityTheme",
+    "http://www.w3.org/ns/dcat#theme",
+    "https://w3id.org/mobilitydcat-ap#georeferencingMethod",
+    "https://w3id.org/mobilitydcat-ap#networkCoverage",
+    "https://w3id.org/mobilitydcat-ap#transportMode",
+    "https://w3id.org/mobilitydcat-ap#intendedInformationService",
+    "https://w3id.org/mobilitydcat-ap#mobilityDataStandard",
+    "https://w3id.org/mobilitydcat-ap#applicationLayerProtocol",
+    "http://purl.org/dc/terms/type",
+}
+
 
 def count_entities(data_graph_uri: str, dcat_class: str) -> int:
     q = f"""
@@ -113,7 +125,10 @@ def compute_vocabulary_compliance(
 
         for term in ALLOWED_VOCABULARIES:
             violations = get_property_violations(
-                data_graph_uri, dcat_class=dcat_class, term_predicate=term
+                data_graph_uri,
+                dcat_class=dcat_class,
+                term_predicate=term,
+                dcat_ap_version=dcat_ap_version,
             )
             class_vocabulary_violations.extend(violations)
 
@@ -138,7 +153,10 @@ def compute_vocabulary_compliance(
 
 
 def get_property_violations(
-    data_graph_uri: str, dcat_class: str, term_predicate: str
+    data_graph_uri: str,
+    dcat_class: str,
+    term_predicate: str,
+    dcat_ap_version: str = "1.1.0",
 ) -> list[VocabularyViolation]:
     # Check if this property is applicable to this DCAT class
     class_reqs = MOBILITY_DCAT_AP_SPEC.get(dcat_class, {})
@@ -173,51 +191,79 @@ def get_property_violations(
     invalid_terms = set()
     non_compliant_resources = set()
 
-    # Group identifiers by the term node to support blank nodes with multiple properties
-    terms_map = {}
+    # Group identifiers by subject and term node to evaluate each resource as a whole
+    # resources_map: dict[subject_uri, dict[(term_val, term_type), set[identifier_uris]]]
+    resources_map: dict[str, dict[tuple[str, str], set[str]]] = {}
     for binding in bindings:
         s = binding["s"]["value"]
         term_val = binding["term"]["value"]
         term_type = binding["term"]["type"]
         identifier = binding.get("identifier", {}).get("value")
 
-        key = (s, term_val, term_type)
-        if key not in terms_map:
-            terms_map[key] = set()
+        if s not in resources_map:
+            resources_map[s] = {}
+        key = (term_val, term_type)
+        if key not in resources_map[s]:
+            resources_map[s][key] = set()
         if identifier:
-            terms_map[key].add(identifier)
+            resources_map[s][key].add(identifier)
 
     allowed = ALLOWED_VOCABULARIES[term_predicate]
 
-    for (s, term_val, term_type), identifiers in terms_map.items():
-        # If it's a blank node (skolemized or not) and has NO identifiers, just let it pass.
-        # (the publisher didn't provide an invalid term, they just used a blank node wrapper)
-        is_blank_node = term_type == "bnode" or ".well-known/genid" in term_val
-        if is_blank_node and not identifiers:
-            continue
+    # "At least one" rule applies for mobilityDCAT-AP v3.0.0+ on specific properties
+    is_at_least_one_rule = (
+        dcat_ap_version.startswith("3")
+        and term_predicate in AT_LEAST_ONE_VOCAB_PROPERTIES
+    )
 
-        # First check if the term itself is a valid URI
-        if term_type == "uri" and term_val in allowed:
-            continue
+    for s, terms_dict in resources_map.items():
+        resource_has_valid_term = False
+        resource_invalid_terms = set()
 
-        # Then check if any of its identifiers map to the allowed vocabulary
-        is_valid = False
-        if identifiers:
-            for identifier in identifiers:
-                if identifier in allowed:
-                    is_valid = True
-                    break
-        else:
-            # If it's not a blank node and has no nested identifiers, we check the term itself
-            is_valid = term_type == "uri" and term_val in allowed
+        for (term_val, term_type), identifiers in terms_dict.items():
+            # If it's a blank node (skolemized or not) and has NO identifiers, just let it pass.
+            # (the publisher didn't provide an invalid term, they just used a blank node wrapper)
+            is_blank_node = term_type == "bnode" or ".well-known/genid" in term_val
+            if is_blank_node and not identifiers:
+                continue
 
-        if not is_valid:
+            # First check if the term itself is a valid URI
+            if term_type == "uri" and term_val in allowed:
+                resource_has_valid_term = True
+                continue
+
+            # Then check if any of its identifiers map to the allowed vocabulary
+            is_valid = False
             if identifiers:
                 for identifier in identifiers:
-                    invalid_terms.add(identifier)
+                    if identifier in allowed:
+                        is_valid = True
+                        break
             else:
-                invalid_terms.add(term_val)
-            non_compliant_resources.add(s)
+                # If it's not a blank node and has no nested identifiers, we check the term itself
+                is_valid = term_type == "uri" and term_val in allowed
+
+            if is_valid:
+                resource_has_valid_term = True
+            else:
+                if identifiers:
+                    for identifier in identifiers:
+                        resource_invalid_terms.add(identifier)
+                else:
+                    resource_invalid_terms.add(term_val)
+
+        if is_at_least_one_rule:
+            # Rule: At least 1 value from controlled vocabulary.
+            # If the resource has at least one valid term, non-controlled vocabulary values are tolerated.
+            # If the resource has NO valid term from the controlled vocabulary, mark it non-compliant.
+            if not resource_has_valid_term and resource_invalid_terms:
+                invalid_terms.update(resource_invalid_terms)
+                non_compliant_resources.add(s)
+        else:
+            # Default / Strict rule: ALL values must be from the controlled vocabulary.
+            if resource_invalid_terms:
+                invalid_terms.update(resource_invalid_terms)
+                non_compliant_resources.add(s)
 
     formatted_invalid_terms = sorted(invalid_terms)
     if len(formatted_invalid_terms) > 10:
