@@ -186,6 +186,10 @@ def create_shacl_summary(result_graph_uri: str, data_graph_uri: str, graph: str)
                 rs += f" ; shv:hasRuleConstraint {sparql_escape_uri(row['path'])}"
             if row["shape"]:
                 rs += f" ; shv:hasRule {sparql_escape_uri(row['shape'])}"
+            if row["message"]:
+                rs += f" ; shv:message {sparql_escape_string(row['message'])}"
+            if row["constraint"]:
+                rs += f" ; shv:sourceConstraintComponent {sparql_escape_uri(row['constraint'])}"
             rs += " ."
             triples.append(rs)
 
