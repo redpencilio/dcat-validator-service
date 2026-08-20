@@ -31,29 +31,3 @@ VOCAB_REPORT_PREDICATE = "http://mu.semte.ch/vocabularies/ext/vocabularyReport"
 VALIDATION_SUMMARY_URI_PREFIX = "http://redpencil.data.gift/id/validation-summary/"
 TARGET_CLASS_SUMMARY_URI_PREFIX = "http://redpencil.data.gift/id/target-class-summary/"
 RULE_SUMMARY_URI_PREFIX = "http://redpencil.data.gift/id/rule-summary/"
-
-DCAT_CLASSES = [
-    "http://www.w3.org/ns/dcat#Catalog",
-    "http://www.w3.org/ns/dcat#Dataset",
-    "http://www.w3.org/ns/dcat#Distribution",
-    "http://www.w3.org/ns/dcat#CatalogRecord",
-]
-
-MOBILITY_DCAT_AP_VERSION = "1.1.0"
-SHACL_BASE_PATH = "/app/shacl-files"
-
-if MOBILITY_DCAT_AP_VERSION == "1.1.0":
-    # You can find the shacl files for 1.1.0 here:
-    # https://github.com/mobilityDCAT-AP/mobilityDCAT-AP/tree/gh-pages/releases/1.1.0/shaclShapes
-    SHACL_FILES = [
-        "v1.1.0/mobilitydcat-ap_1.1.0_shacl_shapes.ttl",
-        "v1.1.0/mobilitydcat-ap_1.1.0_shacl_range.ttl",
-#       "v1.1.0/mobilitydcat-ap_1.1.0_shacl_mdr-vocabularies.shape.ttl" --> This is handled by python scriptes now
-    ]
-elif MOBILITY_DCAT_AP_VERSION == "3.0.0":
-    # You can find the shacl files for 3.0.0 here:
-    # https://github.com/mobilityDCAT-AP/mobilityDCAT-AP/tree/gh-pages/drafts/latest/shaclShapes
-    SHACL_FILES = [
-        "v3.0.0/mobilitydcat-ap-shacl.ttl",
-        "v3.0.0/mobilitydcat-ap-shacl-ranges.ttl"
-    ]

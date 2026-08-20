@@ -14,13 +14,14 @@ from escape_helpers import sparql_escape_uri, sparql_escape_string, sparql_escap
 from sudo_query import query_sudo as query, update_sudo as update
 
 from constants import (
-    DATA_GRAPH, PUBLIC_GRAPH, SHACL_BASE_PATH, SHACL_FILES, TASKS_GRAPH,
+    DATA_GRAPH, PUBLIC_GRAPH, TASKS_GRAPH,
     SHACL_VALIDATION_OPERATION, SHACL_VALIDATION_INPUT_URI_PREFIX,
     MU_SPARQL_ENDPOINT, SHACL_VALIDATION_RESULT_URI_PREFIX,
     SHACL_VALIDATION_RESULT_GRAPH_URI_PREFIX,
     VALIDATION_SUMMARY_URI_PREFIX, TARGET_CLASS_SUMMARY_URI_PREFIX,
-    RULE_SUMMARY_URI_PREFIX, SHACL_REPORT_PREDICATE, DCAT_CLASSES
+    RULE_SUMMARY_URI_PREFIX, SHACL_REPORT_PREDICATE
 )
+from spec import DCAT_CLASSES, SHACL_BASE_PATH, SHACL_FILES_VERSIONED
 from utils import from_binding, store_graph, save_json_report
 import task_runner
 from custom_exceptions import InputNotFoundError
@@ -57,7 +58,7 @@ def run_shacl_validation_task(task):
 
     shacl_graph = rdflib.Graph()
 
-    for filename in SHACL_FILES:
+    for filename in SHACL_FILES_VERSIONED[task.dcat_ap_version]:
         path = os.path.join(SHACL_BASE_PATH, filename)
         shacl_graph.parse(path)
 
