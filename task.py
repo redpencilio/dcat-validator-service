@@ -28,6 +28,7 @@ class Task:
     uri: str = None
     id: str = None
     created: datetime.datetime = None
+    dcat_ap_version: Optional[str] = None
 
     def __post_init__(self):
         if not self.created:
@@ -178,7 +179,7 @@ PREFIX task: <http://redpencil.data.gift/vocabularies/tasks/>
 PREFIX adms: <http://www.w3.org/ns/adms#>
 PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
 
-SELECT (?task as ?uri) (?uuid as ?id) ?created ?input ?operation ?job_operation WHERE {
+SELECT (?task as ?uri) (?uuid as ?id) ?created ?input ?operation ?job_operation ?dcat_ap_version WHERE {
     GRAPH $graph {
         ?task a task:Task ;
             dct:created ?created ;
@@ -187,6 +188,7 @@ SELECT (?task as ?uri) (?uuid as ?id) ?created ?input ?operation ?job_operation 
             mu:uuid ?uuid .
         OPTIONAL { ?task task:inputContainer/ext:content ?input}
         OPTIONAL { ?task dct:isPartOf/task:operation ?job_operation }
+        OPTIONAL { ?task dct:isPartOf/ext:dcatApVersion ?dcat_ap_version }
         OPTIONAL { ?task ext:headers ?headers }
         VALUES ?operation {$task_types}
     }

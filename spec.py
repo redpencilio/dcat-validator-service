@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from enum import Enum
 
 DCAT_CLASSES = [
@@ -7,29 +9,19 @@ DCAT_CLASSES = [
     "http://www.w3.org/ns/dcat#CatalogRecord",
 ]
 
-MOBILITY_DCAT_AP_VERSION = "1.1.0"
+SHACL_BASE_PATH = "/app/shacl-files"
 
-SHACL_BASE_URL = (
-    "https://raw.githubusercontent.com/mobilityDCAT-AP/mobilityDCAT-AP/gh-pages"
-)
-
-# The files dont follow the same pattern across versions (1.1.0 has 3 files, 3.0.0 merges shapes and vocabularies into one file)
-if MOBILITY_DCAT_AP_VERSION == "1.1.0":
-    # You can find the shacl files for 1.1.0 here:
-    # https://github.com/mobilityDCAT-AP/mobilityDCAT-AP/tree/gh-pages/releases/1.1.0/shaclShapes
-    SHACL_FILES = [
-        "/releases/1.1.0/shaclShapes/mobilitydcat-ap_1.1.0_shacl_shapes.ttl",
-        "/releases/1.1.0/shaclShapes/mobilitydcat-ap_1.1.0_shacl_range.ttl",
-        # "/releases/1.1.0/shaclShapes/mobilitydcat-ap_1.1.0_shacl_mdr-vocabularies.shape.ttl" # This is done via python scripts now
-    ]
-    # You can find the shacl files for 3.0.0 here:
-    # https://github.com/mobilityDCAT-AP/mobilityDCAT-AP/tree/gh-pages/drafts/latest/shaclShapes
-elif MOBILITY_DCAT_AP_VERSION == "3.0.0":
-    SHACL_FILES = [
-        "/drafts/latest/shaclShapes/mobilitydcat-ap-shacl.ttl",
-        "/drafts/latest/shaclShapes/mobilitydcat-ap-shacl-ranges.ttl",
-    ]
-
+SHACL_FILES_VERSIONED: dict[str, list[str]] = {
+    "1.1.0": [
+        "v1.1.0/mobilitydcat-ap_1.1.0_shacl_shapes.ttl",
+        "v1.1.0/mobilitydcat-ap_1.1.0_shacl_range.ttl",
+        #"v1.1.0/mobilitydcat-ap_1.1.0_shacl_mdr-vocabularies.shape.ttl" --> This is handled by python scriptes now
+    ],
+    "3.0.0": [
+        "v3.0.0/mobilitydcat-ap-shacl.ttl",
+        "v3.0.0/mobilitydcat-ap-shacl-ranges.ttl",
+    ],
+}
 
 class Requirement(str, Enum):
     MANDATORY = "mandatory"
