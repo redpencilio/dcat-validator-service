@@ -14,14 +14,15 @@ SHACL_BASE_PATH = "/app/shacl-files"
 SHACL_FILES_VERSIONED: dict[str, list[str]] = {
     "1.1.0": [
         "v1.1.0/mobilitydcat-ap_1.1.0_shacl_shapes.ttl",
-        "v1.1.0/mobilitydcat-ap_1.1.0_shacl_range.ttl",
-        #"v1.1.0/mobilitydcat-ap_1.1.0_shacl_mdr-vocabularies.shape.ttl" --> This is handled by python scriptes now
+        # "v1.1.0/mobilitydcat-ap_1.1.0_shacl_range.ttl",
+        # "v1.1.0/mobilitydcat-ap_1.1.0_shacl_mdr-vocabularies.shape.ttl" --> This is handled by python scriptes now
     ],
     "3.0.0": [
         "v3.0.0/mobilitydcat-ap-shacl.ttl",
-        "v3.0.0/mobilitydcat-ap-shacl-ranges.ttl",
+        # "v3.0.0/mobilitydcat-ap-shacl-ranges.ttl",
     ],
 }
+
 
 class Requirement(str, Enum):
     MANDATORY = "mandatory"
