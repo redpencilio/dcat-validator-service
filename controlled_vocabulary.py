@@ -325,12 +325,6 @@ def save_vocabulary_summary(
             rs_uuid = generate_uuid()
             rs_uri = RULE_SUMMARY_URI_PREFIX + rs_uuid
 
-            message_triple = (
-                f"shv:message {sparql_escape_string(', '.join(vr.invalid_terms))} ; "
-                if vr.invalid_terms
-                else ""
-            )
-
             triples.append(
                 f"{sparql_escape_uri(tc_uri)} shv:hasRuleSummary {sparql_escape_uri(rs_uri)} ."
             )
@@ -339,7 +333,6 @@ def save_vocabulary_summary(
                 f"mu:uuid {sparql_escape_string(rs_uuid)} ; "
                 f"shv:hasRuleConstraint {sparql_escape_uri(vr.property_uri)} ; "
                 f"shv:violationCount {sparql_escape_int(vr.violation_count)} ; "
-                f"{message_triple}"
                 f"shv:hasSeverity {sparql_escape_uri(vr.severity)} ."
             )
             for invalid_term in vr.invalid_terms:
@@ -350,8 +343,8 @@ def save_vocabulary_summary(
                 )
                 triples.append(
                     f"{sparql_escape_uri(rv_uri)} a shv:RuleViolation ; "
-                    f"mu:uuid {sparql_escape_string(rs_uuid)} ; "
-                    f"shv:hasValue {sparql_escape_string(invalid_term)} . "
+                    f"mu:uuid {sparql_escape_string(rv_uuid)} ; "
+                    f"shv:value {sparql_escape_string(invalid_term)} . "
                 )
 
     q = f"""
