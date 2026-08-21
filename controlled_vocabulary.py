@@ -267,11 +267,8 @@ def get_property_violations(
                 non_compliant_resources.add(s)
 
     formatted_invalid_terms = sorted(invalid_terms)
-    if len(formatted_invalid_terms) > 10:
-        extra_count = len(formatted_invalid_terms) - 10
-        formatted_invalid_terms = formatted_invalid_terms[:10] + [
-            f"(+{extra_count} more)"
-        ]
+    if len(formatted_invalid_terms) > 11:
+        formatted_invalid_terms = formatted_invalid_terms[:11]
 
     return [
         VocabularyRuleSumary(
