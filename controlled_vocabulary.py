@@ -13,6 +13,7 @@ from constants import (
     DATA_GRAPH,
     PUBLIC_GRAPH,
     RULE_SUMMARY_URI_PREFIX,
+    RULE_VIOLATION_URI_PREFIX,
     TARGET_CLASS_SUMMARY_URI_PREFIX,
     TASKS_GRAPH,
     VALIDATION_SUMMARY_URI_PREFIX,
@@ -33,7 +34,7 @@ mode = os.getenv("MODE", "production")
 
 
 @dataclass
-class VocabularyViolation:
+class VocabularyRuleSumary:
     property_uri: str
     invalid_terms: list[str]
     violation_count: int
@@ -44,7 +45,7 @@ class VocabularyViolation:
 class ClassVocabularyCompliance:
     class_uri: str
     total_entities_checked: int = 0
-    vocabulary_violations: list[VocabularyViolation] = field(default_factory=list)
+    vocabulary_rules: list[VocabularyRuleSumary] = field(default_factory=list)
 
 
 @dataclass
@@ -119,7 +120,7 @@ def compute_vocabulary_compliance(
     grand_total_violations = 0
 
     for dcat_class in DCAT_CLASSES:
-        class_vocabulary_violations: list[VocabularyViolation] = []
+        class_vocabulary_rules: list[VocabularyRuleSumary] = []
 
         total_entities = count_entities(data_graph_uri, dcat_class)
 
@@ -130,7 +131,7 @@ def compute_vocabulary_compliance(
                 term_predicate=term,
                 dcat_ap_version=dcat_ap_version,
             )
-            class_vocabulary_violations.extend(violations)
+            class_vocabulary_rules.extend(violations)
 
             for v in violations:
                 grand_total_violations += v.violation_count
@@ -139,7 +140,7 @@ def compute_vocabulary_compliance(
             ClassVocabularyCompliance(
                 class_uri=dcat_class,
                 total_entities_checked=total_entities,
-                vocabulary_violations=class_vocabulary_violations,
+                vocabulary_rules=class_vocabulary_rules,
             )
         )
 
@@ -157,7 +158,7 @@ def get_property_violations(
     dcat_class: str,
     term_predicate: str,
     dcat_ap_version: str = "1.1.0",
-) -> list[VocabularyViolation]:
+) -> list[VocabularyRuleSumary]:
     # Check if this property is applicable to this DCAT class
     class_reqs = MOBILITY_DCAT_AP_SPEC.get(dcat_class, {})
     severity = None
@@ -273,7 +274,7 @@ def get_property_violations(
         ]
 
     return [
-        VocabularyViolation(
+        VocabularyRuleSumary(
             property_uri=term_predicate,
             invalid_terms=formatted_invalid_terms,
             violation_count=len(non_compliant_resources),
@@ -320,13 +321,13 @@ def save_vocabulary_summary(
             f"shv:resourceCount {sparql_escape_int(class_cov.total_entities_checked)} ."
         )
 
-        for rv in class_cov.vocabulary_violations:
+        for vr in class_cov.vocabulary_rules:
             rs_uuid = generate_uuid()
             rs_uri = RULE_SUMMARY_URI_PREFIX + rs_uuid
 
             message_triple = (
-                f"shv:message {sparql_escape_string(', '.join(rv.invalid_terms))} ; "
-                if rv.invalid_terms
+                f"shv:message {sparql_escape_string(', '.join(vr.invalid_terms))} ; "
+                if vr.invalid_terms
                 else ""
             )
 
@@ -336,11 +337,22 @@ def save_vocabulary_summary(
             triples.append(
                 f"{sparql_escape_uri(rs_uri)} a shv:RuleSummary ; "
                 f"mu:uuid {sparql_escape_string(rs_uuid)} ; "
-                f"shv:hasRuleConstraint {sparql_escape_uri(rv.property_uri)} ; "
-                f"shv:violationCount {sparql_escape_int(rv.violation_count)} ; "
+                f"shv:hasRuleConstraint {sparql_escape_uri(vr.property_uri)} ; "
+                f"shv:violationCount {sparql_escape_int(vr.violation_count)} ; "
                 f"{message_triple}"
-                f"shv:hasSeverity {sparql_escape_uri(rv.severity)} ."
+                f"shv:hasSeverity {sparql_escape_uri(vr.severity)} ."
             )
+            for invalid_term in vr.invalid_terms:
+                rv_uuid = generate_uuid()
+                rv_uri = RULE_VIOLATION_URI_PREFIX + rv_uuid
+                triples.append(
+                    f"{sparql_escape_uri(rs_uri)} shv:hasRuleViolation {sparql_escape_uri(rv_uri)} . "
+                )
+                triples.append(
+                    f"{sparql_escape_uri(rv_uri)} a shv:RuleViolation ; "
+                    f"mu:uuid {sparql_escape_string(rs_uuid)} ; "
+                    f"shv:hasValue {sparql_escape_string(invalid_term)} . "
+                )
 
     q = f"""
 PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
@@ -353,6 +365,8 @@ INSERT DATA {{
     }}
 }}
 """
+    if mode == "development":
+        print(f"[INSERT]: {q}")
     update(q)
     return summary_uri
 
