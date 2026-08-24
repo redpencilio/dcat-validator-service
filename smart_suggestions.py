@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Mapping
+from typing import Any
 from urllib.parse import urlsplit
 
 import numpy as np
-from rapidfuzz import fuzz, process
+from rapidfuzz import fuzz
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
@@ -29,7 +30,6 @@ def split_prefix_postfix(uri: str) -> tuple[str, str]:
         prefix = f"{split.scheme}://{split.netloc}{split.path.rstrip('/')}"
         postfix = split.fragment.rstrip("/")
         return (prefix, postfix)
-
 
 
 def _cosine_sim(
@@ -59,10 +59,6 @@ def uri_score_fuzzy_split(query: str, candidate: str) -> float:
     postfix_score = fuzz.ratio(q[1], c[1])
 
     return 0.2 * prefix_score + 0.8 * postfix_score
-
-
-def uri_score_fuzzy(query: str, candidate: str) -> float:
-    return fuzz.WRatio(query, candidate)
 
 
 def uri_score_cosine(query: str, candidate: str) -> float:
@@ -132,7 +128,6 @@ def _batch_matrix_cosine(
     limit: int = 3,
     cutoff: float = 30.0,
 ) -> dict[str, list[tuple[str, float]]]:
-    """Ultra-fast batch matrix cosine calculation (sub-10ms for thousands of terms)."""
     if not queries or not vec_vocab.candidates:
         return {q: [] for q in queries}
 
@@ -164,7 +159,6 @@ def _batch_matrix_cosine(
         if exact_found:
             continue
 
-
         if len(candidates) <= limit:
             top_indices = np.argsort(row_scores)[::-1]
         else:
@@ -181,35 +175,20 @@ def _batch_matrix_cosine(
     return results
 
 
-def find_closest_uri(
-    query: str,
-    candidates: set[str] | list[str],
-    limit: int = 3,
-    cutoff: float = 50.0,
-    scorer: Callable[[str, str], float] | str = uri_score_cosine,
-) -> list[tuple[str, float]]:
-    """Find closest candidate URIs for a single query."""
-    return get_similar_uris(
-        [query], candidates, limit=limit, cutoff=cutoff, scorer=scorer
-    ).get(query, [])
-
-
 def get_similar_uris(
     queries: list[str],
     candidates: set[str] | list[str],
+    scorer: Callable[[str, str], float],
     limit: int = 3,
     cutoff: float = 50.0,
-    scorer: Callable[[str, str], float] | str = uri_score_cosine,
 ) -> dict[str, list[tuple[str, float]]]:
     """Match a list of query URIs against candidates using a configurable scorer function.
 
     Supports:
-      - RapidFuzz scorers: uri_score, uri_score_2, fuzz.WRatio, etc.
+      - RapidFuzz scorers: uri_score_fuzzy_split, fuzz.WRatio, etc.
       - Cosine distance: uri_score_cosine (automatically uses ultra-fast matrix acceleration)
-      - Custom scorer: any (query: str, candidate: str) -> float callable
     """
-    # 1. Fast matrix acceleration when cosine scorer is used with pre-vectorized vocabularies
-    if scorer == uri_score_cosine or scorer == "cosine":
+    if scorer == uri_score_cosine:
         cand_key = frozenset(candidates)
         if cand_key in VECTORIZED_BY_CANDIDATES:
             return _batch_matrix_cosine(
@@ -219,18 +198,11 @@ def get_similar_uris(
                 cutoff=cutoff,
             )
 
-    # 2. Pairwise scoring for custom / RapidFuzz scorers
-    scorer_fn: Callable[[str, str], float] = (
-        uri_score_fuzzy
-        if scorer == "fuzzy"
-        else (uri_score_cosine if scorer == "cosine" else scorer)  # type: ignore
-    )
-
     results: dict[str, list[tuple[str, float]]] = {}
     for query in queries:
         matched: list[tuple[str, float]] = []
         for candidate in candidates:
-            score = scorer_fn(query, candidate)
+            score = scorer(query, candidate)
             if score >= cutoff:
                 matched.append((candidate, score))
             elif score == 100.0:
@@ -274,26 +246,3 @@ def get_vocabulary_dict() -> dict[str, set[str]]:
 
 VOC_DICT = get_vocabulary_dict()
 VECTORIZED_VOCABULARIES, VECTORIZED_BY_CANDIDATES = vectorize_vocabulary(VOC_DICT)
-
-if __name__ == "__main__":
-    vocab = VOC_DICT.get("https://w3id.org/mobilitydcat-ap#transportMode")
-    if not vocab:
-        print("no vocab")
-    else:
-        test_query = "https://w3id.com/mobilitydcat-ap/transport-mode#bike"
-        res_fuzz = find_closest_uri(
-            test_query,
-            vocab,
-            limit=5,
-            cutoff=40,
-            scorer=uri_score_fuzzy,
-        )
-        res_cosine = find_closest_uri(
-            test_query,
-            vocab,
-            limit=5,
-            cutoff=30,
-            scorer=uri_score_cosine,
-        )
-        print("RapidFuzz matches (scorer=uri_score_2):", res_fuzz)
-        print("Cosine similarity matches (scorer=uri_score_cosine):", res_cosine)
