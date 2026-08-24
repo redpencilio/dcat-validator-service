@@ -26,7 +26,7 @@ from constants import (
     VOCAB_REPORT_PREDICATE,
     VOCABULARY_ANALYSIS_OPERATION,
 )
-from smart_suggestions import get_similar_uris
+from smart_suggestions import get_similar_uris, uri_score_cosine
 from spec import (
     DCAT_CLASSES,
     MOBILITY_DCAT_AP_SPEC,
@@ -276,7 +276,9 @@ def get_property_violations(
     formatted_invalid_terms = sorted(invalid_terms)
     if len(formatted_invalid_terms) > 11:
         formatted_invalid_terms: list[str] = formatted_invalid_terms[:11]
-    similar_uris = get_similar_uris(formatted_invalid_terms, allowed)
+    similar_uris = get_similar_uris(
+        formatted_invalid_terms, allowed, limit=3, cutoff=50, scorer=uri_score_cosine
+    )
 
     return [
         VocabularyRuleSumary(
