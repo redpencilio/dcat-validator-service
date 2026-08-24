@@ -1,10 +1,7 @@
 from __future__ import annotations
 
-import json
-import os
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -12,6 +9,8 @@ import numpy as np
 from rapidfuzz import fuzz
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+
+from utils import get_vocabulary_dict
 
 
 def split_prefix_postfix(uri: str) -> tuple[str, str]:
@@ -212,36 +211,6 @@ def get_similar_uris(
         results[query] = matched[:limit]
 
     return results
-
-
-def get_vocabulary_dict() -> dict[str, set[str]]:
-    vocab_json_path = Path(
-        os.environ.get(
-            "VOCABULARIES_JSON", Path(__file__).resolve().parent / "vocabularies.json"
-        )
-    )
-
-    if not vocab_json_path.exists() or vocab_json_path.stat().st_size == 0:
-        print(
-            f"{vocab_json_path.name} not found. Generating from source vocabularies..."
-        )
-        try:
-            from generate_vocabularies import generate_vocabulary_dict
-
-            raw_dict = generate_vocabulary_dict(output_path=vocab_json_path)
-            return {k: set(v) for k, v in raw_dict.items()}
-        except Exception as e:
-            print(f"Error generating vocabulary dictionary: {e}")
-            return {}
-
-    print(f"Loading controlled vocabularies from {vocab_json_path.name}...")
-    try:
-        with open(vocab_json_path, "r", encoding="utf-8") as f:
-            cached_dict = json.load(f)
-        return {k: set(v) for k, v in cached_dict.items()}
-    except Exception as e:
-        print(f"Error loading {vocab_json_path}: {e}")
-        return {}
 
 
 VOC_DICT = get_vocabulary_dict()

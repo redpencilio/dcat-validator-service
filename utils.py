@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from pathlib import Path
+import os
+import json
 from itertools import islice
 from constants import GRAPH_LOAD_BATCH_SIZE
 from escape_helpers import sparql_escape_uri
@@ -76,3 +79,33 @@ SELECT ?url WHERE {{
     res = query(q)
     bindings = res.get("results", {}).get("bindings", [])
     return bindings[0]["url"]["value"] if bindings else None
+
+
+def get_vocabulary_dict() -> dict[str, set[str]]:
+    vocab_json_path = Path(
+        os.environ.get(
+            "VOCABULARIES_JSON", Path(__file__).resolve().parent / "vocabularies.json"
+        )
+    )
+
+    if not vocab_json_path.exists() or vocab_json_path.stat().st_size == 0:
+        print(
+            f"{vocab_json_path.name} not found. Generating from source vocabularies..."
+        )
+        try:
+            from generate_vocabularies import generate_vocabulary_dict
+
+            raw_dict = generate_vocabulary_dict(output_path=vocab_json_path)
+            return {k: set(v) for k, v in raw_dict.items()}
+        except Exception as e:
+            print(f"Error generating vocabulary dictionary: {e}")
+            return {}
+
+    print(f"Loading controlled vocabularies from {vocab_json_path.name}...")
+    try:
+        with open(vocab_json_path, "r", encoding="utf-8") as f:
+            cached_dict = json.load(f)
+        return {k: set(v) for k, v in cached_dict.items()}
+    except Exception as e:
+        print(f"Error loading {vocab_json_path}: {e}")
+        return {}
