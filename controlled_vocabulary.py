@@ -20,6 +20,7 @@ from constants import (
     VOCAB_REPORT_PREDICATE,
     VOCABULARY_ANALYSIS_OPERATION,
 )
+from fuzzy_find import fuzzy_match_uris
 from spec import (
     DCAT_CLASSES,
     MOBILITY_DCAT_AP_SPEC,
@@ -36,7 +37,7 @@ mode = os.getenv("MODE", "production")
 @dataclass
 class VocabularyRuleSumary:
     property_uri: str
-    invalid_terms: list[str]
+    invalid_terms: dict[str, list[tuple[str, float]]]
     violation_count: int
     severity: str
 
@@ -268,12 +269,15 @@ def get_property_violations(
 
     formatted_invalid_terms = sorted(invalid_terms)
     if len(formatted_invalid_terms) > 11:
-        formatted_invalid_terms = formatted_invalid_terms[:11]
+        formatted_invalid_terms: list[str] = formatted_invalid_terms[:11]
+    fuzzy_matched = fuzzy_match_uris(
+        formatted_invalid_terms, allowed, limit=3, cutoff=60
+    )
 
     return [
         VocabularyRuleSumary(
             property_uri=term_predicate,
-            invalid_terms=formatted_invalid_terms,
+            invalid_terms=fuzzy_matched,
             violation_count=len(non_compliant_resources),
             severity=severity,
         )
