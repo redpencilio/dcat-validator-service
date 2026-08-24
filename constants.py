@@ -31,3 +31,4 @@ VALIDATION_SUMMARY_URI_PREFIX = "http://redpencil.data.gift/id/validation-summar
 TARGET_CLASS_SUMMARY_URI_PREFIX = "http://redpencil.data.gift/id/target-class-summary/"
 RULE_SUMMARY_URI_PREFIX = "http://redpencil.data.gift/id/rule-summary/"
 RULE_VIOLATION_URI_PREFIX = "http://redpencil.data.gift/id/rule-violation/"
+TERM_SUGGESTION_URI_PREFIX = "http://redpencil.data.gift/id/term-suggestion/"

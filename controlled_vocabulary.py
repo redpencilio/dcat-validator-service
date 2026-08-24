@@ -5,7 +5,7 @@ import os
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from escape_helpers import sparql_escape_int, sparql_escape_string, sparql_escape_uri
+from escape_helpers import sparql_escape_float, sparql_escape_int, sparql_escape_string, sparql_escape_uri
 from helpers import generate_uuid
 
 import task_runner
@@ -16,6 +16,7 @@ from constants import (
     RULE_VIOLATION_URI_PREFIX,
     TARGET_CLASS_SUMMARY_URI_PREFIX,
     TASKS_GRAPH,
+    TERM_SUGGESTION_URI_PREFIX,
     VALIDATION_SUMMARY_URI_PREFIX,
     VOCAB_REPORT_PREDICATE,
     VOCABULARY_ANALYSIS_OPERATION,
@@ -336,7 +337,7 @@ def save_vocabulary_summary(
                 f"shv:violationCount {sparql_escape_int(vr.violation_count)} ; "
                 f"shv:hasSeverity {sparql_escape_uri(vr.severity)} ."
             )
-            for invalid_term in vr.invalid_terms:
+            for invalid_term, suggestions in vr.invalid_terms.items():
                 rv_uuid = generate_uuid()
                 rv_uri = RULE_VIOLATION_URI_PREFIX + rv_uuid
                 triples.append(
@@ -347,6 +348,18 @@ def save_vocabulary_summary(
                     f"mu:uuid {sparql_escape_string(rv_uuid)} ; "
                     f"shv:value {sparql_escape_string(invalid_term)} . "
                 )
+                for suggestion in suggestions:
+                    sug_uuid = generate_uuid()
+                    sug_uri = TERM_SUGGESTION_URI_PREFIX + sug_uuid
+                    triples.append(
+                        f"{sparql_escape_uri(rv_uri)} shv:hasSuggestion {sparql_escape_uri(sug_uri)} . "
+                    )
+                    triples.append(
+                        f"{sparql_escape_uri(sug_uri)} a shv:TermSuggestion ; "
+                            f"mu:uuid {sparql_escape_string(sug_uuid)} ; "
+                            f"shv:value {sparql_escape_string(suggestion[0])} ; "
+                            f"shv:score {sparql_escape_float(suggestion[1])} . "
+                    )
 
     q = f"""
 PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
