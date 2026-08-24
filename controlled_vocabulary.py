@@ -5,7 +5,12 @@ import os
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from escape_helpers import sparql_escape_float, sparql_escape_int, sparql_escape_string, sparql_escape_uri
+from escape_helpers import (
+    sparql_escape_float,
+    sparql_escape_int,
+    sparql_escape_string,
+    sparql_escape_uri,
+)
 from helpers import generate_uuid
 
 import task_runner
@@ -21,7 +26,7 @@ from constants import (
     VOCAB_REPORT_PREDICATE,
     VOCABULARY_ANALYSIS_OPERATION,
 )
-from fuzzy_find import fuzzy_match_uris
+from smart_suggestions import get_similar_uris
 from spec import (
     DCAT_CLASSES,
     MOBILITY_DCAT_AP_SPEC,
@@ -271,14 +276,12 @@ def get_property_violations(
     formatted_invalid_terms = sorted(invalid_terms)
     if len(formatted_invalid_terms) > 11:
         formatted_invalid_terms: list[str] = formatted_invalid_terms[:11]
-    fuzzy_matched = fuzzy_match_uris(
-        formatted_invalid_terms, allowed, limit=3, cutoff=60
-    )
+    similar_uris = get_similar_uris(formatted_invalid_terms, allowed)
 
     return [
         VocabularyRuleSumary(
             property_uri=term_predicate,
-            invalid_terms=fuzzy_matched,
+            invalid_terms=similar_uris,
             violation_count=len(non_compliant_resources),
             severity=severity,
         )
@@ -356,9 +359,9 @@ def save_vocabulary_summary(
                     )
                     triples.append(
                         f"{sparql_escape_uri(sug_uri)} a shv:TermSuggestion ; "
-                            f"mu:uuid {sparql_escape_string(sug_uuid)} ; "
-                            f"shv:value {sparql_escape_string(suggestion[0])} ; "
-                            f"shv:score {sparql_escape_float(suggestion[1])} . "
+                        f"mu:uuid {sparql_escape_string(sug_uuid)} ; "
+                        f"shv:value {sparql_escape_string(suggestion[0])} ; "
+                        f"shv:score {sparql_escape_float(suggestion[1])} . "
                     )
 
     q = f"""
