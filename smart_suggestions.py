@@ -14,19 +14,22 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 
 def split_prefix_postfix(uri: str) -> tuple[str, str]:
+    uri = uri.strip()
     split = urlsplit(uri)
     if split.fragment == "":
-        if "/" in split.path:
-            prefix = f"{split.scheme}://{split.netloc}{split.path.rsplit('/', 1)[0]}"
-            postfix = split.path.rsplit("/", 1)[1]
+        path = split.path.rstrip("/")
+        if "/" in path:
+            prefix = f"{split.scheme}://{split.netloc}{path.rsplit('/', 1)[0]}"
+            postfix = path.rsplit("/", 1)[1]
         else:
             prefix = f"{split.scheme}://{split.netloc}"
-            postfix = split.path
+            postfix = path
         return (prefix, postfix)
     else:
-        prefix = f"{split.scheme}://{split.netloc}{split.path}"
-        postfix = split.fragment
+        prefix = f"{split.scheme}://{split.netloc}{split.path.rstrip('/')}"
+        postfix = split.fragment.rstrip("/")
         return (prefix, postfix)
+
 
 
 def _cosine_sim(
@@ -64,10 +67,11 @@ def uri_score_fuzzy(query: str, candidate: str) -> float:
 
 def uri_score_cosine(query: str, candidate: str) -> float:
     """Calculate cosine similarity score (0.0 to 100.0) between two URIs (pairwise fallback)."""
-    if query == candidate:
+    if query.strip().rstrip("/") == candidate.strip().rstrip("/"):
         return 100.0
     q = split_prefix_postfix(query)
     c = split_prefix_postfix(candidate)
+
     prefix_score = _cosine_sim(q[0], c[0], analyzer="char_wb", ngram_range=(2, 4))
     postfix_score = _cosine_sim(q[1], c[1], analyzer="char_wb", ngram_range=(2, 3))
     return 0.2 * prefix_score + 0.8 * postfix_score
@@ -151,13 +155,15 @@ def _batch_matrix_cosine(
 
         # Fast exact match check
         exact_found = False
+        norm_query = query.strip().rstrip("/")
         for c in candidates:
-            if query == c:
+            if norm_query == c.strip().rstrip("/"):
                 results[query] = [(c, 100.0)]
                 exact_found = True
                 break
         if exact_found:
             continue
+
 
         if len(candidates) <= limit:
             top_indices = np.argsort(row_scores)[::-1]
