@@ -23,12 +23,14 @@ SHACL_BASE_PATH = "/app/shacl-files"
 SHACL_FILES_VERSIONED: dict[str, list[str]] = {
     "1.1.0": [
         "v1.1.0/mobilitydcat-ap_1.1.0_shacl_shapes.ttl",
-        "v1.1.0/dcat-ap_2.0.1_shacl_shapes.ttl",
+        # "v1.1.0/dcat-ap_2.0.1_shacl_shapes.ttl",
         # "v1.1.0/mobilitydcat-ap_1.1.0_shacl_range.ttl",
         # "v1.1.0/mobilitydcat-ap_1.1.0_shacl_mdr-vocabularies.shape.ttl" --> This is handled by python scriptes now
     ],
     "3.0.0": [
         "v3.0.0/mobilitydcat-ap-shacl.ttl",
+        # "v3.0.0/dqv.ttl",
+        # "v3.0.0/dcat-ap-SHACL.ttl",
         # "v3.0.0/mobilitydcat-ap-shacl-ranges.ttl",
     ],
 }
