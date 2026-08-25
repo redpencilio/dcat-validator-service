@@ -21,8 +21,8 @@ from constants import (
     VOCABULARY_ANALYSIS_OPERATION,
 )
 from spec import (
-    DCAT_CLASSES,
-    MOBILITY_DCAT_AP_SPEC,
+    DCAT_CLASSES_VERSIONED,
+    MOBILITY_DCAT_AP_SPEC_VERSIONED,
     SEVERITY,
 )
 from sudo_query import query_sudo as query
@@ -119,7 +119,7 @@ def compute_vocabulary_compliance(
     class_compliances: list[ClassVocabularyCompliance] = []
     grand_total_violations = 0
 
-    for dcat_class in DCAT_CLASSES:
+    for dcat_class in DCAT_CLASSES_VERSIONED[dcat_ap_version]:
         class_vocabulary_rules: list[VocabularyRuleSumary] = []
 
         total_entities = count_entities(data_graph_uri, dcat_class)
@@ -160,7 +160,7 @@ def get_property_violations(
     dcat_ap_version: str = "1.1.0",
 ) -> list[VocabularyRuleSumary]:
     # Check if this property is applicable to this DCAT class
-    class_reqs = MOBILITY_DCAT_AP_SPEC.get(dcat_class, {})
+    class_reqs = MOBILITY_DCAT_AP_SPEC_VERSIONED[dcat_ap_version].get(dcat_class, {})
     severity = None
     for req, props in class_reqs.items():
         if term_predicate in props:
