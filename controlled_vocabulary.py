@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import asdict, dataclass, field
+from pathlib import Path
 
 from escape_helpers import (
     sparql_escape_float,
@@ -33,7 +34,7 @@ from spec import (
 from sudo_query import query_sudo as query
 from sudo_query import update_sudo as update
 from task import Task
-from utils import get_endpoint_url, get_vocabulary_dict, save_json_report
+from utils import get_endpoint_url, save_json_report
 
 mode = os.getenv("MODE", "production")
 
@@ -57,6 +58,36 @@ class ClassVocabularyCompliance:
 class VocabularyResult:
     total_violations: int
     class_compliances: list[ClassVocabularyCompliance] = field(default_factory=list)
+
+
+def get_vocabulary_dict() -> dict[str, set[str]]:
+    vocab_json_path = Path(
+        os.environ.get(
+            "VOCABULARIES_JSON", Path(__file__).resolve().parent / "vocabularies.json"
+        )
+    )
+
+    if not vocab_json_path.exists() or vocab_json_path.stat().st_size == 0:
+        print(
+            f"{vocab_json_path.name} not found. Generating from source vocabularies..."
+        )
+        try:
+            from generate_vocabularies import generate_vocabulary_dict
+
+            raw_dict = generate_vocabulary_dict(output_path=vocab_json_path)
+            return {k: set(v) for k, v in raw_dict.items()}
+        except Exception as e:
+            print(f"Error generating vocabulary dictionary: {e}")
+            return {}
+
+    print(f"Loading controlled vocabularies from {vocab_json_path.name}...")
+    try:
+        with open(vocab_json_path, "r", encoding="utf-8") as f:
+            cached_dict = json.load(f)
+        return {k: set(v) for k, v in cached_dict.items()}
+    except Exception as e:
+        print(f"Error loading {vocab_json_path}: {e}")
+        return {}
 
 
 ALLOWED_VOCABULARIES = get_vocabulary_dict()

@@ -22,16 +22,18 @@ def from_binding(datacls, binding, **extra):
     values.update(extra)
     return datacls(**values)
 
+
 # From python itertools documentation
 def batched(iterable, n, *, strict=False):
     # batched('ABCDEFG', 3) → ABC DEF G
     if n < 1:
-        raise ValueError('n must be at least one')
+        raise ValueError("n must be at least one")
     iterator = iter(iterable)
     while batch := tuple(islice(iterator, n)):
         if strict and len(batch) != n:
-            raise ValueError('batched(): incomplete batch')
+            raise ValueError("batched(): incomplete batch")
         yield batch
+
 
 # adapted from https://github.com/RDFLib/rdflib/issues/1704
 def store_graph(g: rdflib.Graph, graph_name: str):
@@ -48,12 +50,14 @@ def store_graph(g: rdflib.Graph, graph_name: str):
 
         update(updatequery)
 
+
 def listize(object):
     """Wraps `object` in a list, unless it is already a list."""
     if isinstance(object, list):
         return object
     else:
         return [object]
+
 
 def save_json_report(
     report_dict,
@@ -63,6 +67,7 @@ def save_json_report(
         json.dump(report_dict, f, indent=4)
 
     print(f"Readable JSON report saved to {output_path}")
+
 
 def get_endpoint_url(task_uri: str) -> str | None:
     q = f"""
@@ -79,33 +84,3 @@ SELECT ?url WHERE {{
     res = query(q)
     bindings = res.get("results", {}).get("bindings", [])
     return bindings[0]["url"]["value"] if bindings else None
-
-
-def get_vocabulary_dict() -> dict[str, set[str]]:
-    vocab_json_path = Path(
-        os.environ.get(
-            "VOCABULARIES_JSON", Path(__file__).resolve().parent / "vocabularies.json"
-        )
-    )
-
-    if not vocab_json_path.exists() or vocab_json_path.stat().st_size == 0:
-        print(
-            f"{vocab_json_path.name} not found. Generating from source vocabularies..."
-        )
-        try:
-            from generate_vocabularies import generate_vocabulary_dict
-
-            raw_dict = generate_vocabulary_dict(output_path=vocab_json_path)
-            return {k: set(v) for k, v in raw_dict.items()}
-        except Exception as e:
-            print(f"Error generating vocabulary dictionary: {e}")
-            return {}
-
-    print(f"Loading controlled vocabularies from {vocab_json_path.name}...")
-    try:
-        with open(vocab_json_path, "r", encoding="utf-8") as f:
-            cached_dict = json.load(f)
-        return {k: set(v) for k, v in cached_dict.items()}
-    except Exception as e:
-        print(f"Error loading {vocab_json_path}: {e}")
-        return {}
