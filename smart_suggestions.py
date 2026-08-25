@@ -169,6 +169,9 @@ class SuggestionsEngine:
             matched: list[tuple[str, float]] = []
             for idx in top_indices:
                 score = float(row_scores[idx])
+                if score >= 99.9:
+                    matched = [(candidates[idx], score)]
+                    break
                 if score >= cutoff:
                     matched.append((candidates[idx], score))
             results[query] = matched[:limit]
