@@ -23,7 +23,10 @@ from constants import (
 from spec import (
     DCAT_CLASSES_VERSIONED,
     MOBILITY_DCAT_AP_SPEC_VERSIONED,
+    PROPERTY_POLICY_MAPPING_VERSIONED,
     SEVERITY,
+    SpecVersion,
+    VocabularyPolicy,
 )
 from sudo_query import query_sudo as query
 from sudo_query import update_sudo as update
@@ -86,18 +89,6 @@ def get_vocabulary_dict() -> dict[str, set[str]]:
 
 ALLOWED_VOCABULARIES = get_vocabulary_dict()
 
-AT_LEAST_ONE_VOCAB_PROPERTIES: set[str] = {
-    "https://w3id.org/mobilitydcat-ap#mobilityTheme",
-    "http://www.w3.org/ns/dcat#theme",
-    "https://w3id.org/mobilitydcat-ap#georeferencingMethod",
-    "https://w3id.org/mobilitydcat-ap#networkCoverage",
-    "https://w3id.org/mobilitydcat-ap#transportMode",
-    "https://w3id.org/mobilitydcat-ap#intendedInformationService",
-    "https://w3id.org/mobilitydcat-ap#mobilityDataStandard",
-    "https://w3id.org/mobilitydcat-ap#applicationLayerProtocol",
-    "http://purl.org/dc/terms/type",
-}
-
 
 def count_entities(data_graph_uri: str, dcat_class: str) -> int:
     q = f"""
@@ -113,7 +104,7 @@ def count_entities(data_graph_uri: str, dcat_class: str) -> int:
 
 
 def compute_vocabulary_compliance(
-    data_graph_uri: str, dcat_ap_version: str
+    data_graph_uri: str, dcat_ap_version: SpecVersion
 ) -> VocabularyResult:
 
     class_compliances: list[ClassVocabularyCompliance] = []
@@ -157,7 +148,7 @@ def get_property_violations(
     data_graph_uri: str,
     dcat_class: str,
     term_predicate: str,
-    dcat_ap_version: str = "1.1.0",
+    dcat_ap_version: SpecVersion,
 ) -> list[VocabularyRuleSumary]:
     # Check if this property is applicable to this DCAT class
     class_reqs = MOBILITY_DCAT_AP_SPEC_VERSIONED[dcat_ap_version].get(dcat_class, {})
@@ -166,6 +157,13 @@ def get_property_violations(
         if term_predicate in props:
             severity = SEVERITY[req]
             break
+
+    vocab_policy = PROPERTY_POLICY_MAPPING_VERSIONED[dcat_ap_version].get(
+        term_predicate
+    )
+    if not vocab_policy:
+        return []
+    severity = vocab_policy.to_severity()
 
     if not severity:
         return []
@@ -212,11 +210,6 @@ def get_property_violations(
     allowed = ALLOWED_VOCABULARIES[term_predicate]
 
     # "At least one" rule applies for mobilityDCAT-AP v3.0.0+ on specific properties
-    is_at_least_one_rule = (
-        dcat_ap_version.startswith("3")
-        and term_predicate in AT_LEAST_ONE_VOCAB_PROPERTIES
-    )
-
     for s, terms_dict in resources_map.items():
         resource_has_valid_term = False
         resource_invalid_terms = set()
@@ -253,7 +246,7 @@ def get_property_violations(
                 else:
                     resource_invalid_terms.add(term_val)
 
-        if is_at_least_one_rule:
+        if vocab_policy == VocabularyPolicy.AT_LEAST_1:
             # Rule: At least 1 value from controlled vocabulary.
             # If the resource has at least one valid term, non-controlled vocabulary values are tolerated.
             # If the resource has NO valid term from the controlled vocabulary, mark it non-compliant.
@@ -391,7 +384,8 @@ def run_vocabulary_analysis_task(task: Task):
 
     endpoint_url = get_endpoint_url(task.uri)
     vocabulary_result = compute_vocabulary_compliance(
-        data_graph_uri=data_graph, dcat_ap_version=task.dcat_ap_version or "1.1.0"
+        data_graph_uri=data_graph,
+        dcat_ap_version=SpecVersion.from_value(task.dcat_ap_version),
     )
     vocabulary_summary_uri = save_vocabulary_summary(
         vocabulary_result, endpoint_url=endpoint_url, graph=PUBLIC_GRAPH

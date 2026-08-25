@@ -16621,6 +16621,17 @@
     "http://publications.europa.eu/resource/authority/place/ZMB_LUN",
     "http://publications.europa.eu/resource/authority/place/ZWE_HRE"
   ],
+  "http://www.w3.org/ns/adms#status": [
+    "http://publications.europa.eu/resource/authority/distribution-status/ARCHIVE",
+    "http://publications.europa.eu/resource/authority/distribution-status/COMPLETED",
+    "http://publications.europa.eu/resource/authority/distribution-status/DEPRECATED",
+    "http://publications.europa.eu/resource/authority/distribution-status/DEVELOP",
+    "http://publications.europa.eu/resource/authority/distribution-status/ONGOING",
+    "http://publications.europa.eu/resource/authority/distribution-status/OP_DATPRO",
+    "http://publications.europa.eu/resource/authority/distribution-status/PLANNED",
+    "http://publications.europa.eu/resource/authority/distribution-status/REQUIRED",
+    "http://publications.europa.eu/resource/authority/distribution-status/WITHDRAWN"
+  ],
   "http://www.w3.org/ns/dcat#theme": [
     "http://publications.europa.eu/resource/authority/data-theme/AGRI",
     "http://publications.europa.eu/resource/authority/data-theme/ECON",

@@ -11,7 +11,7 @@ from pathlib import Path
 import rdflib
 from rdflib.namespace import RDF, SKOS
 
-from spec import VOC_PROPERTY_MAPPING
+from spec import STEM_PROPERTY_MAPPING, SpecVersion
 
 EU_BASE = "https://op.europa.eu/o/opportal-service/euvoc-download-handler?cellarURI="
 MOB_BASE = (
@@ -49,6 +49,14 @@ REMOTE_VOCABULARY_SOURCES = {
         "url": f"{EU_BASE}http%3A%2F%2Fpublications.europa.eu%2Fresource%2Fdistribution%2Fdata-theme%2F20241211-0%2Frdf%2Fskos_core%2Fdata-theme-skos.rdf&fileName=data-theme-skos.rdf",
         "format": "xml",
     },
+    "distribution-status-skos": {
+        "url": f"{EU_BASE}http%3A%2F%2Fpublications.europa.eu%2Fresource%2Fdistribution%2Fdistribution-status%2F20260617-0%2Frdf%2Fskos_core%2Fdistribution-status-skos.rdf&fileName=distribution-status-skos.rdf",
+        "format": "xml",
+    },
+    # "corporatebodies-skos": {
+    #     "url": f"{EU_BASE}http%3A%2F%2Fpublications.europa.eu%2Fresource%2Fdistribution%2Fcorporate-body%2F20260617-0%2Frdf%2Fskos_core%2Fcorporatebodies-skos.rdf&fileName=corporatebodies-skos.rdf",
+    #     "format": "xml",
+    # },
     "NUTS": {
         "url": f"{EU_BASE}http%3A%2F%2Fpublications.europa.eu%2Fresource%2Fdistribution%2Fnuts%2F20260701-0%2Frdf%2Fskos_xl%2FNUTS.rdf&fileName=NUTS.rdf",
         "format": "xml",
@@ -62,10 +70,10 @@ REMOTE_VOCABULARY_SOURCES = {
         "url": f"{MOB_BASE}/communication-method/latest/communication-method.ttl",
         "format": "turtle",
     },
-    "conditions-for-access-and-usage": {
-        "url": f"{MOB_BASE}/conditions-for-access-and-usage/latest/conditions-for-access-and-usage.ttl",
-        "format": "turtle",
-    },
+    # "conditions-for-access-and-usage": {
+    #     "url": f"{MOB_BASE}/conditions-for-access-and-usage/latest/conditions-for-access-and-usage.ttl",
+    #     "format": "turtle",
+    # },
     "energy-fuel-type": {
         "url": f"{MOB_BASE}/energy-fuel-type/latest/energy-fuel-type.ttl",
         "format": "turtle",
@@ -131,7 +139,7 @@ def generate_vocabulary_dict(
 
     vocabulary_dict: dict[str, set[str]] = {}
 
-    for stem, predicates in VOC_PROPERTY_MAPPING.items():
+    for stem, predicates in STEM_PROPERTY_MAPPING.items():
         # Check if local file exists
         local_file = None
         if local_dir.exists():
