@@ -20,6 +20,7 @@ class VectorizedVocabulary:
     vec_postfix: TfidfVectorizer
     matrix_postfix: Any
 
+
 class SuggestionsEngine:
     def __init__(self, vocab_dict: dict[str, set[str]]):
         self.vocab_dict = vocab_dict
@@ -56,7 +57,7 @@ class SuggestionsEngine:
             except Exception as e:
                 print(f"Failed to vectorize vocabulary for {prop_uri}: {e}")
         self.vectorized = True
-    
+
     def __split_prefix_postfix(self, uri: str) -> tuple[str, str]:
         uri = uri.strip()
         split = urlsplit(uri)
@@ -94,10 +95,6 @@ class SuggestionsEngine:
         except ValueError:
             return 0.0
 
-
-
-
-
     def uri_score_fuzzy_split(self, query: str, candidate: str) -> float:
         q = self.__split_prefix_postfix(query)
         c = self.__split_prefix_postfix(candidate)
@@ -106,20 +103,24 @@ class SuggestionsEngine:
 
         return 0.2 * prefix_score + 0.8 * postfix_score
 
-
     def uri_score_cosine(self, query: str, candidate: str) -> float:
         """Calculate cosine similarity score (0.0 to 100.0) between two URIs (pairwise fallback)."""
         if not self.vectorized:
-            raise Exception("The vocabulary must be vectorized before calculating cosine similarity")
+            raise Exception(
+                "The vocabulary must be vectorized before calculating cosine similarity"
+            )
         if query.strip().rstrip("/") == candidate.strip().rstrip("/"):
             return 100.0
         q = self.__split_prefix_postfix(query)
         c = self.__split_prefix_postfix(candidate)
 
-        prefix_score = self.__cosine_sim(q[0], c[0], analyzer="char_wb", ngram_range=(2, 4))
-        postfix_score = self.__cosine_sim(q[1], c[1], analyzer="char_wb", ngram_range=(2, 3))
+        prefix_score = self.__cosine_sim(
+            q[0], c[0], analyzer="char_wb", ngram_range=(2, 4)
+        )
+        postfix_score = self.__cosine_sim(
+            q[1], c[1], analyzer="char_wb", ngram_range=(2, 3)
+        )
         return 0.2 * prefix_score + 0.8 * postfix_score
-
 
     def __batch_matrix_cosine(
         self,
@@ -173,7 +174,6 @@ class SuggestionsEngine:
             results[query] = matched[:limit]
 
         return results
-
 
     def get_similar_uris(
         self,
