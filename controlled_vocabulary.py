@@ -24,7 +24,7 @@ from constants import (
     VOCAB_REPORT_PREDICATE,
     VOCABULARY_ANALYSIS_OPERATION,
 )
-from smart_suggestions import get_similar_uris, uri_score_cosine
+from smart_suggestions import SuggestionsEngine
 from spec import (
     DCAT_CLASSES,
     MOBILITY_DCAT_AP_SPEC,
@@ -58,7 +58,10 @@ class VocabularyResult:
     total_violations: int
     class_compliances: list[ClassVocabularyCompliance] = field(default_factory=list)
 
+
 ALLOWED_VOCABULARIES = get_vocabulary_dict()
+suggestions_engine = SuggestionsEngine(ALLOWED_VOCABULARIES)
+suggestions_engine.vectorize()  # Can be skipped if not using cosine distance (but fuzzy finding)
 
 AT_LEAST_ONE_VOCAB_PROPERTIES: set[str] = {
     "https://w3id.org/mobilitydcat-ap#mobilityTheme",
@@ -243,8 +246,12 @@ def get_property_violations(
     formatted_invalid_terms = sorted(invalid_terms)
     if len(formatted_invalid_terms) > 11:
         formatted_invalid_terms: list[str] = formatted_invalid_terms[:11]
-    similar_uris = get_similar_uris(
-        formatted_invalid_terms, allowed, limit=3, cutoff=50, scorer=uri_score_cosine
+    similar_uris = suggestions_engine.get_similar_uris(
+        formatted_invalid_terms,
+        allowed,
+        limit=3,
+        cutoff=50,
+        scorer=suggestions_engine.uri_score_cosine,
     )
 
     return [
