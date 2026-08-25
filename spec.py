@@ -159,16 +159,14 @@ MOBILITY_DCAT_AP_SPEC_VERSIONED = {
                 "http://www.w3.org/ns/dcat#record",
                 "http://purl.org/dc/terms/title",
             ],
-            Requirement.RECOMMENDED: [
+            Requirement.OPTIONAL: [
                 "http://purl.org/dc/terms/language",
                 "http://purl.org/dc/terms/license",
                 "http://purl.org/dc/terms/modified",
                 "http://purl.org/dc/terms/issued",
-                "http://www.w3.org/ns/dcat#themeTaxonomy",
-            ],
-            Requirement.OPTIONAL: [
-                "http://www.w3.org/ns/dcat#dataset",
                 "http://purl.org/dc/terms/hasPart",
+                "http://www.w3.org/ns/dcat#themeTaxonomy",
+                "http://www.w3.org/ns/dcat#dataset",
                 "http://purl.org/dc/terms/identifier",
                 "http://www.w3.org/ns/adms#identifier",
             ],
@@ -183,7 +181,7 @@ MOBILITY_DCAT_AP_SPEC_VERSIONED = {
                 "http://purl.org/dc/terms/publisher",
                 "http://purl.org/dc/terms/title",
             ],
-            Requirement.RECOMMENDED: [
+            Requirement.OPTIONAL: [
                 "https://w3id.org/mobilitydcat-ap#georeferencingMethod",
                 "http://www.w3.org/ns/dcat#contactPoint",
                 "http://www.w3.org/ns/dcat#keyword",
@@ -193,23 +191,23 @@ MOBILITY_DCAT_AP_SPEC_VERSIONED = {
                 "http://purl.org/dc/terms/temporal",
                 "http://www.w3.org/ns/dcat#theme",
                 "https://w3id.org/mobilitydcat-ap#transportMode",
-            ],
-            Requirement.OPTIONAL: [
                 "http://data.europa.eu/r5r/applicableLegislation",
                 "https://w3id.org/mobilitydcat-ap#assessmentResult",
                 "http://purl.org/dc/terms/hasVersion",
-                "http://purl.org/dc/terms/identifier",
-                "https://w3id.org/mobilitydcat-ap#intendedInformationService",
-                "http://purl.org/dc/terms/isReferencedBy",
-                "http://purl.org/dc/terms/isVersionOf",
-                "http://purl.org/dc/terms/language",
-                "http://www.w3.org/ns/adms#identifier",
-                "http://purl.org/dc/terms/relation",
-                "http://purl.org/dc/terms/issued",
-                "http://purl.org/dc/terms/modified",
-                "http://www.w3.org/2002/07/owl#versionInfo",
-                "http://www.w3.org/ns/adms#versionNotes",
                 "http://www.w3.org/ns/dqv#hasQualityAnnotation",
+                "http://purl.org/dc/terms/identifier",
+                "http://www.w3.org/ns/adms#identifier",
+                "https://w3id.org/mobilitydcat-ap#intendedInformationService",
+                "http://www.w3.org/ns/dcat#inSeries",
+                "http://purl.org/dc/terms/issued",
+                "http://purl.org/dc/terms/language",
+                "http://purl.org/dc/terms/modified",
+                "http://xmlns.com/foaf/0.1/page",
+                "http://data.europa.eu/930/referenceSystem",
+                "http://purl.org/dc/terms/relation",
+                "http://purl.org/dc/terms/source",
+                "http://www.w3.org/ns/dcat#version",
+                "http://www.w3.org/ns/adms#versionNotes",
             ],
         },
         "http://www.w3.org/ns/dcat#Distribution": {
@@ -219,25 +217,29 @@ MOBILITY_DCAT_AP_SPEC_VERSIONED = {
                 "http://purl.org/dc/terms/format",
                 "http://purl.org/dc/terms/rights",
             ],
-            Requirement.RECOMMENDED: [
+            Requirement.OPTIONAL: [
+                "http://purl.org/dc/terms/title",
+                "http://purl.org/dc/terms/applicableLegislation",
                 "https://w3id.org/mobilitydcat-ap#applicationLayerProtocol",
                 "http://purl.org/dc/terms/description",
                 "http://purl.org/dc/terms/license",
-            ],
-            Requirement.OPTIONAL: [
-                "http://www.w3.org/ns/dcat#accessService",
                 "http://www.w3.org/2011/content#characterEncoding",
                 "https://w3id.org/mobilitydcat-ap#communicationMethod",
+                "http://purl.org/dc/terms/conformsTo",
                 "https://w3id.org/mobilitydcat-ap#dataFormatNotes",
+                "http://xmlns.com/foaf/0.1/page",
                 "http://www.w3.org/ns/dcat#downloadURL",
-                "https://w3id.org/mobilitydcat-ap#grammar",
+                "http://purl.org/dc/terms/issued",
+                "http://purl.org/dc/terms/language",
+                "http://purl.org/dc/terms/modified",
                 "http://www.w3.org/ns/adms#sample",
+                "http://www.w3.org/ns/adms#status",
                 "http://purl.org/dc/terms/temporal",
             ],
         },
         "http://www.w3.org/ns/dcat#CatalogRecord": {
             Requirement.MANDATORY: [
-                "http://purl.org/dc/terms/created",
+                "http://purl.org/dc/terms/issued",
                 "http://purl.org/dc/terms/language",
                 "http://purl.org/dc/terms/modified",
                 "http://xmlns.com/foaf/0.1/primaryTopic",
@@ -245,6 +247,7 @@ MOBILITY_DCAT_AP_SPEC_VERSIONED = {
             Requirement.OPTIONAL: [
                 "http://purl.org/dc/terms/publisher",
                 "http://purl.org/dc/terms/source",
+                "http://purl.org/dc/terms/conformsTo",
             ],
         },
         "http://www.w3.org/ns/dcat#DatasetSeries": {
@@ -252,7 +255,7 @@ MOBILITY_DCAT_AP_SPEC_VERSIONED = {
                 "http://purl.org/dc/terms/description",
                 "http://purl.org/dc/terms/title",
             ],
-            Requirement.RECOMMENDED: [
+            Requirement.OPTIONAL: [
                 "http://purl.org/dc/terms/accrualPeriodicity",
                 "http://purl.org/dc/terms/applicableLegislation",
                 "http://purl.org/dc/terms/contactPoint",
@@ -261,10 +264,10 @@ MOBILITY_DCAT_AP_SPEC_VERSIONED = {
                 "https://w3id.org/mobilitydcat-ap#mobilityTheme",
                 "http://purl.org/dc/terms/modified",
                 "http://purl.org/dc/terms/spatial",
-                "http://purl.org/dc/terms/temporal"
-            ]
-        }
-    }
+                "http://purl.org/dc/terms/temporal",
+            ],
+        },
+    },
 }
 
 VOC_PROPERTY_MAPPING = {
