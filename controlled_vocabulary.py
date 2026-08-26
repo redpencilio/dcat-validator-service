@@ -1,12 +1,16 @@
 from __future__ import annotations
-from custom_exceptions import ResourceNotFoundError
 
 import json
 import os
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from escape_helpers import sparql_escape_int, sparql_escape_string, sparql_escape_uri
+from escape_helpers import (
+    sparql_escape_float,
+    sparql_escape_int,
+    sparql_escape_string,
+    sparql_escape_uri,
+)
 from helpers import generate_uuid
 
 import task_runner
@@ -17,10 +21,13 @@ from constants import (
     RULE_VIOLATION_URI_PREFIX,
     TARGET_CLASS_SUMMARY_URI_PREFIX,
     TASKS_GRAPH,
+    TERM_SUGGESTION_URI_PREFIX,
     VALIDATION_SUMMARY_URI_PREFIX,
     VOCAB_REPORT_PREDICATE,
     VOCABULARY_ANALYSIS_OPERATION,
 )
+from custom_exceptions import ResourceNotFoundError
+from smart_suggestions import SuggestionsEngine
 from spec import (
     DCAT_CLASSES,
     MOBILITY_DCAT_AP_SPEC,
@@ -37,7 +44,7 @@ mode = os.getenv("MODE", "production")
 @dataclass
 class VocabularyRuleSumary:
     property_uri: str
-    invalid_terms: list[str]
+    invalid_terms: dict[str, list[tuple[str, float]]]
     violation_count: int
     severity: str
 
@@ -86,6 +93,8 @@ def get_vocabulary_dict() -> dict[str, set[str]] | None:
 
 
 ALLOWED_VOCABULARIES = get_vocabulary_dict()
+suggestions_engine = SuggestionsEngine(ALLOWED_VOCABULARIES)
+suggestions_engine.vectorize()  # Can be skipped if not using cosine distance (but fuzzy finding)
 
 AT_LEAST_ONE_VOCAB_PROPERTIES: set[str] = {
     "https://w3id.org/mobilitydcat-ap#mobilityTheme",
@@ -260,12 +269,19 @@ def get_property_violations(
 
     formatted_invalid_terms = sorted(invalid_terms)
     if len(formatted_invalid_terms) > 11:
-        formatted_invalid_terms = formatted_invalid_terms[:11]
+        formatted_invalid_terms: list[str] = formatted_invalid_terms[:11]
+    similar_uris = suggestions_engine.get_similar_uris(
+        formatted_invalid_terms,
+        allowed,
+        limit=3,
+        cutoff=50,
+        scorer=suggestions_engine.uri_score_cosine,
+    )
 
     return [
         VocabularyRuleSumary(
             property_uri=term_predicate,
-            invalid_terms=formatted_invalid_terms,
+            invalid_terms=similar_uris,
             violation_count=len(non_compliant_resources),
             severity=severity,
         )
@@ -324,7 +340,7 @@ def save_vocabulary_summary(
                 f"shv:violationCount {sparql_escape_int(vr.violation_count)} ; "
                 f"shv:hasSeverity {sparql_escape_uri(vr.severity)} ."
             )
-            for invalid_term in vr.invalid_terms:
+            for invalid_term, suggestions in vr.invalid_terms.items():
                 rv_uuid = generate_uuid()
                 rv_uri = RULE_VIOLATION_URI_PREFIX + rv_uuid
                 triples.append(
@@ -335,6 +351,18 @@ def save_vocabulary_summary(
                     f"mu:uuid {sparql_escape_string(rv_uuid)} ; "
                     f"shv:value {sparql_escape_string(invalid_term)} . "
                 )
+                for suggestion in suggestions:
+                    sug_uuid = generate_uuid()
+                    sug_uri = TERM_SUGGESTION_URI_PREFIX + sug_uuid
+                    triples.append(
+                        f"{sparql_escape_uri(rv_uri)} shv:hasSuggestion {sparql_escape_uri(sug_uri)} . "
+                    )
+                    triples.append(
+                        f"{sparql_escape_uri(sug_uri)} a shv:TermSuggestion ; "
+                        f"mu:uuid {sparql_escape_string(sug_uuid)} ; "
+                        f"shv:value {sparql_escape_string(suggestion[0])} ; "
+                        f"shv:score {sparql_escape_float(suggestion[1])} . "
+                    )
 
     q = f"""
 PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
