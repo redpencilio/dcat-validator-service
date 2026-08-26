@@ -379,7 +379,7 @@ def get_data_graph(input_uri: str, graph: str) -> str | None:
 def run_vocabulary_analysis_task(task: Task):
     data_graph = get_data_graph(task.input, DATA_GRAPH)
     if not data_graph:
-        raise Exception(f"Input {task.input} not found!")
+        raise ResourceNotFoundError("The harvested data graph could not be found.")
 
     endpoint_url = get_endpoint_url(task.uri)
     vocabulary_result = compute_vocabulary_compliance(
