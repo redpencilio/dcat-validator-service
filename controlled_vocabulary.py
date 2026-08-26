@@ -65,14 +65,10 @@ def get_vocabulary_dict() -> dict[str, set[str]]:
         print(
             f"{vocab_json_path.name} not found. Generating from source vocabularies..."
         )
-        try:
-            from generate_vocabularies import generate_vocabulary_dict
+        from generate_vocabularies import generate_vocabulary_dict
 
-            raw_dict = generate_vocabulary_dict(output_path=vocab_json_path)
-            return {k: set(v) for k, v in raw_dict.items()}
-        except Exception as e:
-            print(f"Error generating vocabulary dictionary: {e}")
-            return {}
+        raw_dict = generate_vocabulary_dict(output_path=vocab_json_path)
+        return {k: set(v) for k, v in raw_dict.items()}
 
     print(f"Loading controlled vocabularies from {vocab_json_path.name}...")
     try:
