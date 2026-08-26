@@ -21,7 +21,7 @@ from spec import Requirement, SEVERITY, MOBILITY_DCAT_AP_SPEC
 import task_runner
 from utils import save_json_report, get_endpoint_url, count_entities
 
-from custom_exceptions import InputNotFoundError
+from custom_exceptions import ResourceNotFoundError
 mode = os.getenv("MODE", "production")
 
 @dataclass
@@ -75,7 +75,7 @@ SELECT ?data_graph WHERE {{
 def run_coverage_analysis_task(task):
     data_graph = get_data_graph(task.input, DATA_GRAPH)
     if not data_graph:
-        raise InputNotFoundError(f"Input {task.input} not found!")
+        raise ResourceNotFoundError("The harvested data graph could not be found.")
 
     endpoint_url = get_endpoint_url(task.uri)
     coverage_result = compute_coverage(data_graph=data_graph)

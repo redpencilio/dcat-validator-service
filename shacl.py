@@ -24,7 +24,7 @@ from constants import (
 from spec import DCAT_CLASSES, SHACL_BASE_PATH, SHACL_FILES_VERSIONED
 from utils import from_binding, store_graph, save_json_report
 import task_runner
-from custom_exceptions import InputNotFoundError
+from custom_exceptions import ResourceNotFoundError
 import os
 
 mode = os.getenv("MODE", "production")
@@ -43,7 +43,7 @@ class ValidationResult:
 def run_shacl_validation_task(task):
     input = get_input(task.input, DATA_GRAPH)
     if not input:
-        raise InputNotFoundError(f"Input {task.input} not found!")
+        raise ResourceNotFoundError("The harvested data graph could not be found.")
 
     store = sparql_store.SPARQLStore(MU_SPARQL_ENDPOINT, headers={'mu-auth-sudo': 'true'})
 

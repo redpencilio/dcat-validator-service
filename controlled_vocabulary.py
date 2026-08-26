@@ -1,4 +1,5 @@
 from __future__ import annotations
+from custom_exceptions import ResourceNotFoundError
 
 import json
 import os
@@ -54,7 +55,7 @@ class VocabularyResult:
     class_compliances: list[ClassVocabularyCompliance] = field(default_factory=list)
 
 
-def get_vocabulary_dict() -> dict[str, set[str]]:
+def get_vocabulary_dict() -> dict[str, set[str]] | None:
     vocab_json_path = Path(
         os.environ.get(
             "VOCABULARIES_JSON", Path(__file__).resolve().parent / "vocabularies.json"
@@ -65,10 +66,14 @@ def get_vocabulary_dict() -> dict[str, set[str]]:
         print(
             f"{vocab_json_path.name} not found. Generating from source vocabularies..."
         )
-        from generate_vocabularies import generate_vocabulary_dict
+        try:
+            from generate_vocabularies import generate_vocabulary_dict
 
-        raw_dict = generate_vocabulary_dict(output_path=vocab_json_path)
-        return {k: set(v) for k, v in raw_dict.items()}
+            raw_dict = generate_vocabulary_dict(output_path=vocab_json_path)
+            return {k: set(v) for k, v in raw_dict.items()}
+        except Exception as e:
+            print(f"Error generating vocabulary dictionary: {e}")
+            return None
 
     print(f"Loading controlled vocabularies from {vocab_json_path.name}...")
     try:
@@ -77,7 +82,7 @@ def get_vocabulary_dict() -> dict[str, set[str]]:
         return {k: set(v) for k, v in cached_dict.items()}
     except Exception as e:
         print(f"Error loading {vocab_json_path}: {e}")
-        return {}
+        return None
 
 
 ALLOWED_VOCABULARIES = get_vocabulary_dict()
@@ -106,6 +111,8 @@ def compute_vocabulary_compliance(
 
         total_entities = count_entities(data_graph_uri, dcat_class)
 
+        if not ALLOWED_VOCABULARIES:
+            raise ResourceNotFoundError("Controlled vocabulary data could not be found.")
         for term in ALLOWED_VOCABULARIES:
             violations = get_property_violations(
                 data_graph_uri,
@@ -190,6 +197,9 @@ def get_property_violations(
             resources_map[s][key] = set()
         if identifier:
             resources_map[s][key].add(identifier)
+
+    if not ALLOWED_VOCABULARIES:
+        raise ResourceNotFoundError("Controlled vocabulary data could not be found.")
 
     allowed = ALLOWED_VOCABULARIES[term_predicate]
 
