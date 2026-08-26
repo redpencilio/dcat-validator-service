@@ -1,7 +1,7 @@
 from __future__ import annotations
+import os
 from typing import Optional
-from dataclasses import dataclass, field
-from enum import Enum
+from dataclasses import dataclass, field, asdict
 
 from helpers import generate_uuid
 from sudo_query import query_sudo, update_sudo
@@ -17,125 +17,12 @@ from constants import (
     TARGET_CLASS_SUMMARY_URI_PREFIX,
     RULE_SUMMARY_URI_PREFIX,
 )
+from spec import Requirement, SEVERITY, MOBILITY_DCAT_AP_SPEC
 import task_runner
+from utils import save_json_report, get_endpoint_url, count_entities
 
-from custom_exceptions import InputNotFoundError
-
-class Requirement(str, Enum):
-    MANDATORY = "mandatory"
-    RECOMMENDED = "recommended"
-    OPTIONAL = "optional"
-
-
-SEVERITY = {
-    Requirement.MANDATORY: "http://www.w3.org/ns/shacl#Violation",
-    Requirement.RECOMMENDED: "http://www.w3.org/ns/shacl#Warning",
-    Requirement.OPTIONAL: "http://www.w3.org/ns/shacl#Info",
-}
-
-
-# mobilityDCAT-AP spec. Source:
-# https://mobilitydcat-ap.github.io/mobilityDCAT-AP/releases/index.html
-MOBILITY_DCAT_AP_SPEC = {
-    "http://www.w3.org/ns/dcat#Catalog": {
-        Requirement.MANDATORY: [
-            "http://purl.org/dc/terms/description",
-            "http://purl.org/dc/terms/spatial",
-            "http://xmlns.com/foaf/0.1/homepage",
-            "http://purl.org/dc/terms/publisher",
-            "http://www.w3.org/ns/dcat#record",
-            "http://purl.org/dc/terms/title",
-        ],
-        Requirement.RECOMMENDED: [
-            "http://purl.org/dc/terms/language",
-            "http://purl.org/dc/terms/license",
-            "http://purl.org/dc/terms/modified",
-            "http://purl.org/dc/terms/issued",
-            "http://www.w3.org/ns/dcat#themeTaxonomy",
-        ],
-        Requirement.OPTIONAL: [
-            "http://www.w3.org/ns/dcat#dataset",
-            "http://purl.org/dc/terms/hasPart",
-            "http://purl.org/dc/terms/identifier",
-            "http://www.w3.org/ns/adms#identifier",
-        ],
-    },
-    "http://www.w3.org/ns/dcat#Dataset": {
-        Requirement.MANDATORY: [
-            "http://www.w3.org/ns/dcat#distribution",
-            "http://purl.org/dc/terms/description",
-            "http://purl.org/dc/terms/accrualPeriodicity",
-            "http://purl.org/dc/terms/spatial",
-            "https://w3id.org/mobilitydcat-ap#mobilityTheme",
-            "http://purl.org/dc/terms/publisher",
-            "http://purl.org/dc/terms/title",
-        ],
-        Requirement.RECOMMENDED: [
-            "https://w3id.org/mobilitydcat-ap#georeferencingMethod",
-            "http://www.w3.org/ns/dcat#contactPoint",
-            "http://www.w3.org/ns/dcat#keyword",
-            "https://w3id.org/mobilitydcat-ap#networkCoverage",
-            "http://purl.org/dc/terms/conformsTo",
-            "http://purl.org/dc/terms/rightsHolder",
-            "http://purl.org/dc/terms/temporal",
-            "http://www.w3.org/ns/dcat#theme",
-            "https://w3id.org/mobilitydcat-ap#transportMode",
-        ],
-        Requirement.OPTIONAL: [
-            "http://data.europa.eu/r5r/applicableLegislation",
-            "https://w3id.org/mobilitydcat-ap#assessmentResult",
-            "http://purl.org/dc/terms/hasVersion",
-            "http://purl.org/dc/terms/identifier",
-            "https://w3id.org/mobilitydcat-ap#intendedInformationService",
-            "http://purl.org/dc/terms/isReferencedBy",
-            "http://purl.org/dc/terms/isVersionOf",
-            "http://purl.org/dc/terms/language",
-            "http://www.w3.org/ns/adms#identifier",
-            "http://purl.org/dc/terms/relation",
-            "http://purl.org/dc/terms/issued",
-            "http://purl.org/dc/terms/modified",
-            "http://www.w3.org/2002/07/owl#versionInfo",
-            "http://www.w3.org/ns/adms#versionNotes",
-            "http://www.w3.org/ns/dqv#hasQualityAnnotation",
-        ],
-    },
-    "http://www.w3.org/ns/dcat#Distribution": {
-        Requirement.MANDATORY: [
-            "http://www.w3.org/ns/dcat#accessURL",
-            "https://w3id.org/mobilitydcat-ap#mobilityDataStandard",
-            "http://purl.org/dc/terms/format",
-            "http://purl.org/dc/terms/rights",
-        ],
-        Requirement.RECOMMENDED: [
-            "https://w3id.org/mobilitydcat-ap#applicationLayerProtocol",
-            "http://purl.org/dc/terms/description",
-            "http://purl.org/dc/terms/license",
-        ],
-        Requirement.OPTIONAL: [
-            "http://www.w3.org/ns/dcat#accessService",
-            "http://www.w3.org/2011/content#characterEncoding",
-            "https://w3id.org/mobilitydcat-ap#communicationMethod",
-            "https://w3id.org/mobilitydcat-ap#dataFormatNotes",
-            "http://www.w3.org/ns/dcat#downloadURL",
-            "https://w3id.org/mobilitydcat-ap#grammar",
-            "http://www.w3.org/ns/adms#sample",
-            "http://purl.org/dc/terms/temporal",
-        ],
-    },
-    "http://www.w3.org/ns/dcat#CatalogRecord": {
-        Requirement.MANDATORY: [
-            "http://purl.org/dc/terms/created",
-            "http://purl.org/dc/terms/language",
-            "http://purl.org/dc/terms/modified",
-            "http://xmlns.com/foaf/0.1/primaryTopic",
-        ],
-        Requirement.OPTIONAL: [
-            "http://purl.org/dc/terms/publisher",
-            "http://purl.org/dc/terms/source",
-        ],
-    },
-}
-
+from custom_exceptions import ResourceNotFoundError
+mode = os.getenv("MODE", "production")
 
 @dataclass
 class RuleViolation:
@@ -185,37 +72,18 @@ SELECT ?data_graph WHERE {{
     return bindings[0]["data_graph"]["value"] if bindings else None
 
 
-def get_endpoint_url(task_uri: str) -> Optional[str]:
-    q = f"""
-PREFIX dct: <http://purl.org/dc/terms/>
-PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
-
-SELECT ?url WHERE {{
-    GRAPH {sparql_escape_uri(TASKS_GRAPH)} {{
-        {sparql_escape_uri(task_uri)} dct:isPartOf ?job .
-        ?job ext:endpointUrl ?url .
-    }}
-}} LIMIT 1
-"""
-    res = query_sudo(q)
-    bindings = res["results"]["bindings"]
-    return bindings[0]["url"]["value"] if bindings else None
-
-
 def run_coverage_analysis_task(task):
     data_graph = get_data_graph(task.input, DATA_GRAPH)
     if not data_graph:
-        raise InputNotFoundError(f"Input {task.input} not found!")
+        raise ResourceNotFoundError("The harvested data graph could not be found.")
 
     endpoint_url = get_endpoint_url(task.uri)
-    result = compute_coverage(data_graph=data_graph)
-    summary_uri = save_summary(result, endpoint_url=endpoint_url, graph=PUBLIC_GRAPH)
-    task_runner.link_report_to_job(task.uri, summary_uri, predicate_uri=COVERAGE_REPORT_PREDICATE, graph=TASKS_GRAPH)
-    return summary_uri
-
+    coverage_result = compute_coverage(data_graph=data_graph)
+    coverage_summary_uri = save_summary(coverage_result, endpoint_url=endpoint_url, graph=PUBLIC_GRAPH)
+    task_runner.link_report_to_job(task.uri, coverage_summary_uri, predicate_uri=COVERAGE_REPORT_PREDICATE, graph=TASKS_GRAPH)
+    return coverage_summary_uri
 
 task_runner.register(COVERAGE_ANALYSIS_OPERATION, run_coverage_analysis_task)
-
 
 def compute_coverage(data_graph: str) -> CoverageResult:
     class_coverages = []
@@ -240,20 +108,10 @@ def compute_coverage(data_graph: str) -> CoverageResult:
 
         class_coverages.append(ClassCoverage(class_uri=class_uri, total_entities=total, rule_violations=rule_violations))
 
-    return CoverageResult(total_violations=total_violations, class_coverages=class_coverages)
-
-
-def count_entities(data_graph: str, class_uri: str) -> int:
-    q = f"""
-SELECT (COUNT(DISTINCT ?s) as ?count) WHERE {{
-    GRAPH {sparql_escape_uri(data_graph)} {{
-        ?s a {sparql_escape_uri(class_uri)} .
-    }}
-}}
-"""
-    res = query_sudo(q)
-    bindings = res["results"]["bindings"]
-    return int(bindings[0]["count"]["value"]) if bindings else 0
+    result = CoverageResult(total_violations=total_violations, class_coverages=class_coverages)
+    if mode == "development":
+        save_json_report(asdict(result), "/app/coverage_report.json")
+    return result
 
 
 def count_entities_with_property(data_graph: str, class_uri: str, property_uris: list[str]) -> dict[str, int]:
