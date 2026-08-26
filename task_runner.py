@@ -8,6 +8,7 @@ from context_query import use_mu_headers
 
 from constants import TASKS_GRAPH, CONTAINER_URI_PREFIX, MU_APPLICATION_GRAPH
 from task import find_actionable_task_of_types, TaskStatus
+from error_messages import format_human_readable_error
 
 _runners = {}
 
@@ -34,6 +35,7 @@ def run_task(task):
     except Exception as e:
         log(f"Failed to run task <{task.uri}> with operation <{task.operation}>:")
         traceback.print_exc()
+        task.store_error(format_human_readable_error(e))
         task.update_status(TaskStatus.FAILED)
 
 def run_tasks():

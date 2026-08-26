@@ -22,6 +22,7 @@ from constants import (
 )
 from utils import from_binding, store_graph
 import task_runner
+from custom_exceptions import InputNotFoundError
 
 @dataclass
 class ValidationInput:
@@ -37,7 +38,7 @@ class ValidationResult:
 def run_shacl_validation_task(task):
     input = get_input(task.input, DATA_GRAPH)
     if not input:
-        raise Exception(f"Input {task.input} not found!")
+        raise InputNotFoundError(f"Input {task.input} not found!")
 
     store = sparql_store.SPARQLStore(MU_SPARQL_ENDPOINT, headers={'mu-auth-sudo': 'true'})
 

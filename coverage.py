@@ -19,6 +19,7 @@ from constants import (
 )
 import task_runner
 
+from custom_exceptions import InputNotFoundError
 
 class Requirement(str, Enum):
     MANDATORY = "mandatory"
@@ -204,7 +205,7 @@ SELECT ?url WHERE {{
 def run_coverage_analysis_task(task):
     data_graph = get_data_graph(task.input, DATA_GRAPH)
     if not data_graph:
-        raise Exception(f"Input {task.input} not found!")
+        raise InputNotFoundError(f"Input {task.input} not found!")
 
     endpoint_url = get_endpoint_url(task.uri)
     result = compute_coverage(data_graph=data_graph)
