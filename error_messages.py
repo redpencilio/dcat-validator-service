@@ -18,7 +18,7 @@ def format_human_readable_error(e: Exception) -> str:
         return "Validation failed due to a recursion error in the SHACL shapes."
 
     elif isinstance(e, (urllib.error.HTTPError, urllib.error.URLError)):
-        return "Validation failed because the mobilityDCAT-AP SHACL shapes could not be downloaded."
+        return "Validation failed because the mobilityDCAT-AP SHACL shapes or controlled vocabularies could not be downloaded."
 
     elif isinstance(e, SPARQLWrapper.SPARQLExceptions.EndPointInternalError):
         return "Validation failed because the internal database timed out or crashed during processing."
