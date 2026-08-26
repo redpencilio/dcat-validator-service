@@ -122,8 +122,8 @@ SELECT ?class ?path ?shape ?severity ?constraint (SAMPLE(?msg) as ?message) (COU
             "path": b.get("path", {}).get("value"),
             "shape": b.get("shape", {}).get("value"),
             "severity": b["severity"]["value"],
-            "constraint": b.get("constraint").get("value"),
-            "message": b.get("message").get("value"),
+            "constraint": b.get("constraint", {}).get("value"),
+            "message": b.get("message", {}).get("value"),
             "count": int(b["count"]["value"])
         })
     return by_class
