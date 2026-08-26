@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-import os
-import json
 from itertools import islice
 from constants import GRAPH_LOAD_BATCH_SIZE
 from escape_helpers import sparql_escape_uri
@@ -58,7 +55,6 @@ def listize(object):
     else:
         return [object]
 
-
 def save_json_report(
     report_dict,
     output_path: str = "/app/shacl_report.json",
@@ -67,7 +63,6 @@ def save_json_report(
         json.dump(report_dict, f, indent=4)
 
     print(f"Readable JSON report saved to {output_path}")
-
 
 def get_endpoint_url(task_uri: str) -> str | None:
     q = f"""
@@ -84,3 +79,16 @@ SELECT ?url WHERE {{
     res = query(q)
     bindings = res.get("results", {}).get("bindings", [])
     return bindings[0]["url"]["value"] if bindings else None
+
+
+def count_entities(data_graph_uri: str, dcat_class: str) -> int:
+    q = f"""
+        SELECT (COUNT(DISTINCT ?s) as ?count) WHERE {{
+            GRAPH {sparql_escape_uri(data_graph_uri)} {{
+                ?s a {sparql_escape_uri(dcat_class)} .
+            }}
+        }}
+    """
+    res = query(q)
+    bindings = res.get("results", {}).get("bindings", [])
+    return int(bindings[0]["count"]["value"]) if bindings else 0

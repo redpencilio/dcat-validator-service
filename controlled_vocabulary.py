@@ -1,6 +1,6 @@
 from __future__ import annotations
-import json
 
+import json
 import os
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -26,6 +26,7 @@ from constants import (
     VOCAB_REPORT_PREDICATE,
     VOCABULARY_ANALYSIS_OPERATION,
 )
+from custom_exceptions import ResourceNotFoundError
 from smart_suggestions import SuggestionsEngine
 from spec import (
     DCAT_CLASSES,
@@ -35,7 +36,7 @@ from spec import (
 from sudo_query import query_sudo as query
 from sudo_query import update_sudo as update
 from task import Task
-from utils import get_endpoint_url, save_json_report
+from utils import count_entities, get_endpoint_url, save_json_report
 
 mode = os.getenv("MODE", "production")
 
@@ -61,7 +62,7 @@ class VocabularyResult:
     class_compliances: list[ClassVocabularyCompliance] = field(default_factory=list)
 
 
-def get_vocabulary_dict() -> dict[str, set[str]]:
+def get_vocabulary_dict() -> dict[str, set[str]] | None:
     vocab_json_path = Path(
         os.environ.get(
             "VOCABULARIES_JSON", Path(__file__).resolve().parent / "vocabularies.json"
@@ -79,7 +80,7 @@ def get_vocabulary_dict() -> dict[str, set[str]]:
             return {k: set(v) for k, v in raw_dict.items()}
         except Exception as e:
             print(f"Error generating vocabulary dictionary: {e}")
-            return {}
+            return None
 
     print(f"Loading controlled vocabularies from {vocab_json_path.name}...")
     try:
@@ -88,7 +89,7 @@ def get_vocabulary_dict() -> dict[str, set[str]]:
         return {k: set(v) for k, v in cached_dict.items()}
     except Exception as e:
         print(f"Error loading {vocab_json_path}: {e}")
-        return {}
+        return None
 
 
 ALLOWED_VOCABULARIES = get_vocabulary_dict()
@@ -104,21 +105,7 @@ AT_LEAST_ONE_VOCAB_PROPERTIES: set[str] = {
     "https://w3id.org/mobilitydcat-ap#intendedInformationService",
     "https://w3id.org/mobilitydcat-ap#mobilityDataStandard",
     "https://w3id.org/mobilitydcat-ap#applicationLayerProtocol",
-    "http://purl.org/dc/terms/type",
 }
-
-
-def count_entities(data_graph_uri: str, dcat_class: str) -> int:
-    q = f"""
-        SELECT (COUNT(DISTINCT ?s) as ?count) WHERE {{
-            GRAPH {sparql_escape_uri(data_graph_uri)} {{
-                ?s a {sparql_escape_uri(dcat_class)} .
-            }}
-        }}
-    """
-    res = query(q)
-    bindings = res.get("results", {}).get("bindings", [])
-    return int(bindings[0]["count"]["value"]) if bindings else 0
 
 
 def compute_vocabulary_compliance(
@@ -133,6 +120,8 @@ def compute_vocabulary_compliance(
 
         total_entities = count_entities(data_graph_uri, dcat_class)
 
+        if not ALLOWED_VOCABULARIES:
+            raise ResourceNotFoundError("Controlled vocabulary data could not be found.")
         for term in ALLOWED_VOCABULARIES:
             violations = get_property_violations(
                 data_graph_uri,
@@ -218,6 +207,9 @@ def get_property_violations(
         if identifier:
             resources_map[s][key].add(identifier)
 
+    if not ALLOWED_VOCABULARIES:
+        raise ResourceNotFoundError("Controlled vocabulary data could not be found.")
+
     allowed = ALLOWED_VOCABULARIES[term_predicate]
 
     # "At least one" rule applies for mobilityDCAT-AP v3.0.0+ on specific properties
@@ -289,7 +281,7 @@ def get_property_violations(
     return [
         VocabularyRuleSumary(
             property_uri=term_predicate,
-            invalid_terms=similar_uris,
+            invalid_terms=formatted_invalid_terms,
             violation_count=len(non_compliant_resources),
             severity=severity,
         )

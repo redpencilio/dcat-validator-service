@@ -1,7 +1,6 @@
-.mu-template-stubs/
-.venv/
 pyrightconfig.json
+.venv/
+.mu-template-stubs/
 
 # Large external vocabulary files
 vocabularies/
-
