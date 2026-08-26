@@ -95,7 +95,6 @@ AT_LEAST_ONE_VOCAB_PROPERTIES: set[str] = {
     "https://w3id.org/mobilitydcat-ap#intendedInformationService",
     "https://w3id.org/mobilitydcat-ap#mobilityDataStandard",
     "https://w3id.org/mobilitydcat-ap#applicationLayerProtocol",
-    "http://purl.org/dc/terms/type",
 }
 
 
