@@ -72,20 +72,20 @@ SELECT ?data_graph WHERE {{
     return bindings[0]["data_graph"]["value"] if bindings else None
 
 
-def run_coverage_analysis_task(task):
+def run_coverage_analysis_task(task: Task):
     data_graph = get_data_graph(task.input, DATA_GRAPH)
     if not data_graph:
         raise ResourceNotFoundError("The harvested data graph could not be found.")
 
     endpoint_url = get_endpoint_url(task.uri)
-    coverage_result = compute_coverage(data_graph=data_graph, dcat_ap_version=task.dcat_ap_version)
+    coverage_result = compute_coverage(data_graph=data_graph, dcat_ap_version=SpecVersion.from_value(task.dcat_ap_version))
     coverage_summary_uri = save_summary(coverage_result, endpoint_url=endpoint_url, graph=PUBLIC_GRAPH)
     task_runner.link_report_to_job(task.uri, coverage_summary_uri, predicate_uri=COVERAGE_REPORT_PREDICATE, graph=TASKS_GRAPH)
     return coverage_summary_uri
 
 task_runner.register(COVERAGE_ANALYSIS_OPERATION, run_coverage_analysis_task)
 
-def compute_coverage(data_graph: str, dcat_ap_version="1.1.0") -> CoverageResult:
+def compute_coverage(data_graph: str, dcat_ap_version=SpecVersion.V1_1_0) -> CoverageResult:
     class_coverages = []
     total_violations = 0
 
