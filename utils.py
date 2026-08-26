@@ -19,18 +19,16 @@ def from_binding(datacls, binding, **extra):
     values.update(extra)
     return datacls(**values)
 
-
 # From python itertools documentation
 def batched(iterable, n, *, strict=False):
     # batched('ABCDEFG', 3) → ABC DEF G
     if n < 1:
-        raise ValueError("n must be at least one")
+        raise ValueError('n must be at least one')
     iterator = iter(iterable)
     while batch := tuple(islice(iterator, n)):
         if strict and len(batch) != n:
-            raise ValueError("batched(): incomplete batch")
+            raise ValueError('batched(): incomplete batch')
         yield batch
-
 
 # adapted from https://github.com/RDFLib/rdflib/issues/1704
 def store_graph(g: rdflib.Graph, graph_name: str):
@@ -46,7 +44,6 @@ def store_graph(g: rdflib.Graph, graph_name: str):
         updatequery += f" . \n\t }}\n}}\n"
 
         update(updatequery)
-
 
 def listize(object):
     """Wraps `object` in a list, unless it is already a list."""
