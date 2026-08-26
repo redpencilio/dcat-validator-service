@@ -105,10 +105,6 @@ class SuggestionsEngine:
 
     def uri_score_cosine(self, query: str, candidate: str) -> float:
         """Calculate cosine similarity score (0.0 to 100.0) between two URIs (pairwise fallback)."""
-        if not self.vectorized:
-            raise Exception(
-                "The vocabulary must be vectorized before calculating cosine similarity"
-            )
         if query.strip().rstrip("/") == candidate.strip().rstrip("/"):
             return 100.0
         q = self.__split_prefix_postfix(query)
@@ -193,14 +189,18 @@ class SuggestionsEngine:
         - Cosine distance: self.uri_score_cosine (automatically uses ultra-fast matrix acceleration)
         """
         if scorer == self.uri_score_cosine:
-            cand_key = frozenset(candidates)
-            if cand_key in self.by_cand:
-                return self.__batch_matrix_cosine(
-                    queries,
-                    self.by_cand[cand_key],
-                    limit=limit,
-                    cutoff=cutoff,
-                )
+            if self.vectorized:
+                cand_key = frozenset(candidates)
+                if cand_key in self.by_cand:
+                    return self.__batch_matrix_cosine(
+                        queries,
+                        self.by_cand[cand_key],
+                        limit=limit,
+                        cutoff=cutoff,
+                    )
+            else:
+                print("Tried to calculate cosine similarity but vocabulary was not vectorized first... using fuzzyfinding as fallback.")
+                scorer = self.uri_score_fuzzy_split
 
         results: dict[str, list[tuple[str, float]]] = {}
         for query in queries:
