@@ -19,7 +19,7 @@ from constants import (
 )
 from spec import Requirement, SEVERITY, MOBILITY_DCAT_AP_SPEC
 import task_runner
-from utils import save_json_report, get_endpoint_url
+from utils import save_json_report, get_endpoint_url, count_entities
 
 <<<<<<< HEAD
 from custom_exceptions import InputNotFoundError
@@ -115,19 +115,6 @@ def compute_coverage(data_graph: str) -> CoverageResult:
     if mode == "development":
         save_json_report(asdict(result), "/app/coverage_report.json")
     return result
-
-
-def count_entities(data_graph: str, class_uri: str) -> int:
-    q = f"""
-SELECT (COUNT(DISTINCT ?s) as ?count) WHERE {{
-    GRAPH {sparql_escape_uri(data_graph)} {{
-        ?s a {sparql_escape_uri(class_uri)} .
-    }}
-}}
-"""
-    res = query_sudo(q)
-    bindings = res["results"]["bindings"]
-    return int(bindings[0]["count"]["value"]) if bindings else 0
 
 
 def count_entities_with_property(data_graph: str, class_uri: str, property_uris: list[str]) -> dict[str, int]:

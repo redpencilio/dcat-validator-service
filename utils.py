@@ -76,3 +76,16 @@ SELECT ?url WHERE {{
     res = query(q)
     bindings = res.get("results", {}).get("bindings", [])
     return bindings[0]["url"]["value"] if bindings else None
+
+
+def count_entities(data_graph_uri: str, dcat_class: str) -> int:
+    q = f"""
+        SELECT (COUNT(DISTINCT ?s) as ?count) WHERE {{
+            GRAPH {sparql_escape_uri(data_graph_uri)} {{
+                ?s a {sparql_escape_uri(dcat_class)} .
+            }}
+        }}
+    """
+    res = query(q)
+    bindings = res.get("results", {}).get("bindings", [])
+    return int(bindings[0]["count"]["value"]) if bindings else 0

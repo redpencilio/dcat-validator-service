@@ -28,7 +28,7 @@ from spec import (
 from sudo_query import query_sudo as query
 from sudo_query import update_sudo as update
 from task import Task
-from utils import get_endpoint_url, save_json_report
+from utils import count_entities, get_endpoint_url, save_json_report
 
 mode = os.getenv("MODE", "production")
 
@@ -96,19 +96,6 @@ AT_LEAST_ONE_VOCAB_PROPERTIES: set[str] = {
     "https://w3id.org/mobilitydcat-ap#mobilityDataStandard",
     "https://w3id.org/mobilitydcat-ap#applicationLayerProtocol",
 }
-
-
-def count_entities(data_graph_uri: str, dcat_class: str) -> int:
-    q = f"""
-        SELECT (COUNT(DISTINCT ?s) as ?count) WHERE {{
-            GRAPH {sparql_escape_uri(data_graph_uri)} {{
-                ?s a {sparql_escape_uri(dcat_class)} .
-            }}
-        }}
-    """
-    res = query(q)
-    bindings = res.get("results", {}).get("bindings", [])
-    return int(bindings[0]["count"]["value"]) if bindings else 0
 
 
 def compute_vocabulary_compliance(
