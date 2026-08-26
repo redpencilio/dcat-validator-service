@@ -28,8 +28,6 @@ from custom_exceptions import ResourceNotFoundError
 
 mode = os.getenv("MODE", "production")
 
-mode = os.getenv("MODE", "production")
-
 @dataclass
 class ValidationInput:
     # shacl_graph: str
