@@ -281,7 +281,7 @@ def get_property_violations(
     return [
         VocabularyRuleSumary(
             property_uri=term_predicate,
-            invalid_terms=formatted_invalid_terms,
+            invalid_terms=similar_uris,
             violation_count=len(non_compliant_resources),
             severity=severity,
         )
