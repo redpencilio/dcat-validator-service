@@ -58,7 +58,8 @@ def run_shacl_validation_task(task):
 
     shacl_graph = rdflib.Graph()
 
-    for filename in SHACL_FILES_VERSIONED[task.dcat_ap_version]:
+    filenames = SHACL_FILES_VERSIONED.get(task.dcat_ap_version) or SHACL_FILES_VERSIONED['1.1.0']
+    for filename in filenames:
         path = os.path.join(SHACL_BASE_PATH, filename)
         shacl_graph.parse(path)
 
