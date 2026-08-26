@@ -17,10 +17,11 @@ from constants import (
     TARGET_CLASS_SUMMARY_URI_PREFIX,
     RULE_SUMMARY_URI_PREFIX,
 )
-from spec import Requirement, SEVERITY, MOBILITY_DCAT_AP_SPEC_VERSIONED
+from spec import Requirement, SEVERITY, MOBILITY_DCAT_AP_SPEC_VERSIONED, SpecVersion
+from task import Task
 import task_runner
-from utils import save_json_report, get_endpoint_url
-
+from utils import save_json_report, get_endpoint_url, count_entities
+from custom_exceptions import ResourceNotFoundError
 mode = os.getenv("MODE", "production")
 
 @dataclass
@@ -74,7 +75,7 @@ SELECT ?data_graph WHERE {{
 def run_coverage_analysis_task(task):
     data_graph = get_data_graph(task.input, DATA_GRAPH)
     if not data_graph:
-        raise Exception(f"Input {task.input} not found!")
+        raise ResourceNotFoundError("The harvested data graph could not be found.")
 
     endpoint_url = get_endpoint_url(task.uri)
     coverage_result = compute_coverage(data_graph=data_graph, dcat_ap_version=task.dcat_ap_version)
@@ -111,19 +112,6 @@ def compute_coverage(data_graph: str, dcat_ap_version="1.1.0") -> CoverageResult
     if mode == "development":
         save_json_report(asdict(result), "/app/coverage_report.json")
     return result
-
-
-def count_entities(data_graph: str, class_uri: str) -> int:
-    q = f"""
-SELECT (COUNT(DISTINCT ?s) as ?count) WHERE {{
-    GRAPH {sparql_escape_uri(data_graph)} {{
-        ?s a {sparql_escape_uri(class_uri)} .
-    }}
-}}
-"""
-    res = query_sudo(q)
-    bindings = res["results"]["bindings"]
-    return int(bindings[0]["count"]["value"]) if bindings else 0
 
 
 def count_entities_with_property(data_graph: str, class_uri: str, property_uris: list[str]) -> dict[str, int]:

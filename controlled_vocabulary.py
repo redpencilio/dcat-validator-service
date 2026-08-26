@@ -20,6 +20,7 @@ from constants import (
     VOCAB_REPORT_PREDICATE,
     VOCABULARY_ANALYSIS_OPERATION,
 )
+from custom_exceptions import ResourceNotFoundError
 from spec import (
     DCAT_CLASSES_VERSIONED,
     MOBILITY_DCAT_AP_SPEC_VERSIONED,
@@ -31,7 +32,7 @@ from spec import (
 from sudo_query import query_sudo as query
 from sudo_query import update_sudo as update
 from task import Task
-from utils import get_endpoint_url, save_json_report
+from utils import count_entities, get_endpoint_url, save_json_report
 
 mode = os.getenv("MODE", "production")
 
@@ -57,7 +58,7 @@ class VocabularyResult:
     class_compliances: list[ClassVocabularyCompliance] = field(default_factory=list)
 
 
-def get_vocabulary_dict() -> dict[str, set[str]]:
+def get_vocabulary_dict() -> dict[str, set[str]] | None:
     vocab_json_path = Path(
         os.environ.get(
             "VOCABULARIES_JSON", Path(__file__).resolve().parent / "vocabularies.json"
@@ -75,7 +76,7 @@ def get_vocabulary_dict() -> dict[str, set[str]]:
             return {k: set(v) for k, v in raw_dict.items()}
         except Exception as e:
             print(f"Error generating vocabulary dictionary: {e}")
-            return {}
+            return None
 
     print(f"Loading controlled vocabularies from {vocab_json_path.name}...")
     try:
@@ -84,23 +85,10 @@ def get_vocabulary_dict() -> dict[str, set[str]]:
         return {k: set(v) for k, v in cached_dict.items()}
     except Exception as e:
         print(f"Error loading {vocab_json_path}: {e}")
-        return {}
+        return None
 
 
 ALLOWED_VOCABULARIES = get_vocabulary_dict()
-
-
-def count_entities(data_graph_uri: str, dcat_class: str) -> int:
-    q = f"""
-        SELECT (COUNT(DISTINCT ?s) as ?count) WHERE {{
-            GRAPH {sparql_escape_uri(data_graph_uri)} {{
-                ?s a {sparql_escape_uri(dcat_class)} .
-            }}
-        }}
-    """
-    res = query(q)
-    bindings = res.get("results", {}).get("bindings", [])
-    return int(bindings[0]["count"]["value"]) if bindings else 0
 
 
 def compute_vocabulary_compliance(
@@ -115,6 +103,10 @@ def compute_vocabulary_compliance(
 
         total_entities = count_entities(data_graph_uri, dcat_class)
 
+        if not ALLOWED_VOCABULARIES:
+            raise ResourceNotFoundError(
+                "Controlled vocabulary data could not be found."
+            )
         for term in ALLOWED_VOCABULARIES:
             violations = get_property_violations(
                 data_graph_uri,
@@ -165,9 +157,6 @@ def get_property_violations(
         return []
     severity = vocab_policy.to_severity()
 
-    if not severity:
-        return []
-
     q = f"""
         PREFIX dct: <http://purl.org/dc/terms/>
         PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
@@ -207,9 +196,11 @@ def get_property_violations(
         if identifier:
             resources_map[s][key].add(identifier)
 
+    if not ALLOWED_VOCABULARIES:
+        raise ResourceNotFoundError("Controlled vocabulary data could not be found.")
+
     allowed = ALLOWED_VOCABULARIES[term_predicate]
 
-    # "At least one" rule applies for mobilityDCAT-AP v3.0.0+ on specific properties
     for s, terms_dict in resources_map.items():
         resource_has_valid_term = False
         resource_invalid_terms = set()
@@ -380,7 +371,7 @@ def get_data_graph(input_uri: str, graph: str) -> str | None:
 def run_vocabulary_analysis_task(task: Task):
     data_graph = get_data_graph(task.input, DATA_GRAPH)
     if not data_graph:
-        raise Exception(f"Input {task.input} not found!")
+        raise ResourceNotFoundError("The harvested data graph could not be found.")
 
     endpoint_url = get_endpoint_url(task.uri)
     vocabulary_result = compute_vocabulary_compliance(

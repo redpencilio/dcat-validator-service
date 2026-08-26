@@ -21,9 +21,14 @@ from constants import (
     VALIDATION_SUMMARY_URI_PREFIX, TARGET_CLASS_SUMMARY_URI_PREFIX,
     RULE_SUMMARY_URI_PREFIX, SHACL_REPORT_PREDICATE
 )
-from spec import DCAT_CLASSES_VERSIONED, SHACL_BASE_PATH, SHACL_FILES_VERSIONED
+from spec import DCAT_CLASSES_VERSIONED, SHACL_BASE_PATH, SHACL_FILES_VERSIONED, SpecVersion
+from task import Task
 from utils import from_binding, store_graph, save_json_report
 import task_runner
+from custom_exceptions import ResourceNotFoundError
+import os
+
+mode = os.getenv("MODE", "production")
 
 mode = os.getenv("MODE", "production")
 
@@ -41,7 +46,7 @@ class ValidationResult:
 def run_shacl_validation_task(task):
     input = get_input(task.input, DATA_GRAPH)
     if not input:
-        raise Exception(f"Input {task.input} not found!")
+        raise ResourceNotFoundError("The harvested data graph could not be found.")
 
     store = sparql_store.SPARQLStore(MU_SPARQL_ENDPOINT, headers={'mu-auth-sudo': 'true'})
 
@@ -59,8 +64,6 @@ def run_shacl_validation_task(task):
     for filename in SHACL_FILES_VERSIONED[task.dcat_ap_version]:
         path = os.path.join(SHACL_BASE_PATH, filename)
         shacl_graph.parse(path)
-
-
 
     (conforms, result_graph, result_text) = pyshacl.validate(
         data_graph=data_graph,
@@ -121,8 +124,8 @@ SELECT ?class ?path ?shape ?severity ?constraint (SAMPLE(?msg) as ?message) (COU
             "path": b.get("path", {}).get("value"),
             "shape": b.get("shape", {}).get("value"),
             "severity": b["severity"]["value"],
-            "constraint": b.get("constraint").get("value"),
-            "message": b.get("message").get("value"),
+            "constraint": b.get("constraint", {}).get("value"),
+            "message": b.get("message", {}).get("value"),
             "count": int(b["count"]["value"])
         })
     return by_class
