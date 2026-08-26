@@ -21,11 +21,8 @@ from spec import Requirement, SEVERITY, MOBILITY_DCAT_AP_SPEC
 import task_runner
 from utils import save_json_report, get_endpoint_url, count_entities
 
-<<<<<<< HEAD
 from custom_exceptions import InputNotFoundError
-=======
 mode = os.getenv("MODE", "production")
->>>>>>> 9070cdf (save method for vocabulary validation and integration into the current coverage validation code (temporary, should be a new job))
 
 @dataclass
 class RuleViolation:
