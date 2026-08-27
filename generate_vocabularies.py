@@ -6,12 +6,14 @@ into a compact JSON dictionary mapping DCAT property URIs to allowed Concept URI
 from __future__ import annotations
 
 import json
+import urllib.request
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import rdflib
 from rdflib.namespace import RDF, SKOS
 
-from spec import STEM_PROPERTY_MAPPING, SpecVersion
+from spec import STEM_PROPERTY_MAPPING
 
 EU_BASE = "https://op.europa.eu/o/opportal-service/euvoc-download-handler?cellarURI="
 MOB_BASE = (
@@ -23,43 +25,43 @@ REMOTE_VOCABULARY_SOURCES = {
     # EU Publications Office
     "continents-skos": {
         "url": f"{EU_BASE}http%3A%2F%2Fpublications.europa.eu%2Fresource%2Fdistribution%2Fcontinent%2F20260617-0%2Frdf%2Fskos_core%2Fcontinents-skos.rdf&fileName=continents-skos.rdf",
-        "format": "xml",
+        "format": "rdf-xml",
     },
     "countries-skos": {
         "url": f"{EU_BASE}http%3A%2F%2Fpublications.europa.eu%2Fresource%2Fdistribution%2Fcountry%2F20260617-0%2Frdf%2Fskos_core%2Fcountries-skos.rdf&fileName=countries-skos.rdf",
-        "format": "xml",
+        "format": "rdf-xml",
     },
     "places-skos": {
         "url": f"{EU_BASE}http%3A%2F%2Fpublications.europa.eu%2Fresource%2Fdistribution%2Fplace%2F20260617-0%2Frdf%2Fskos_core%2Fplaces-skos.rdf&fileName=places-skos.rdf",
-        "format": "xml",
+        "format": "rdf-xml",
     },
     "languages-skos": {
         "url": f"{EU_BASE}http%3A%2F%2Fpublications.europa.eu%2Fresource%2Fdistribution%2Flanguage%2F20260617-0%2Frdf%2Fskos_core%2Flanguages-skos.rdf&fileName=languages-skos.rdf",
-        "format": "xml",
+        "format": "rdf-xml",
     },
     "filetypes-skos": {
         "url": f"{EU_BASE}http%3A%2F%2Fpublications.europa.eu%2Fresource%2Fdistribution%2Ffile-type%2F20260715-0%2Frdf%2Fskos_core%2Ffiletypes-skos.rdf&fileName=filetypes-skos.rdf",
-        "format": "xml",
+        "format": "rdf-xml",
     },
     "frequencies-skos": {
         "url": f"{EU_BASE}http%3A%2F%2Fpublications.europa.eu%2Fresource%2Fdistribution%2Ffrequency%2F20260617-0%2Frdf%2Fskos_core%2Ffrequencies-skos.rdf&fileName=frequencies-skos.rdf",
-        "format": "xml",
+        "format": "rdf-xml",
     },
     "data-theme-skos": {
         "url": f"{EU_BASE}http%3A%2F%2Fpublications.europa.eu%2Fresource%2Fdistribution%2Fdata-theme%2F20241211-0%2Frdf%2Fskos_core%2Fdata-theme-skos.rdf&fileName=data-theme-skos.rdf",
-        "format": "xml",
+        "format": "rdf-xml",
     },
     "distribution-status-skos": {
         "url": f"{EU_BASE}http%3A%2F%2Fpublications.europa.eu%2Fresource%2Fdistribution%2Fdistribution-status%2F20260617-0%2Frdf%2Fskos_core%2Fdistribution-status-skos.rdf&fileName=distribution-status-skos.rdf",
-        "format": "xml",
+        "format": "rdf-xml",
     },
     # "corporatebodies-skos": {
     #     "url": f"{EU_BASE}http%3A%2F%2Fpublications.europa.eu%2Fresource%2Fdistribution%2Fcorporate-body%2F20260617-0%2Frdf%2Fskos_core%2Fcorporatebodies-skos.rdf&fileName=corporatebodies-skos.rdf",
-    #     "format": "xml",
+    #     "format": "rdf-xml",
     # },
     "NUTS": {
         "url": f"{EU_BASE}http%3A%2F%2Fpublications.europa.eu%2Fresource%2Fdistribution%2Fnuts%2F20260701-0%2Frdf%2Fskos_xl%2FNUTS.rdf&fileName=NUTS.rdf",
-        "format": "xml",
+        "format": "rdf-xml",
     },
     # mobilityDCAT-AP
     "application-layer-protocol": {
@@ -110,7 +112,36 @@ REMOTE_VOCABULARY_SOURCES = {
         "url": f"{MOB_BASE}/update-frequency/latest/update-frequency.ttl",
         "format": "turtle",
     },
+    # OGC - CRS NTS XML (non-SKOS: plain <identifier> list)
+    "reference-systems": {
+        "url": "https://www.opengis.net/def/crs/EPSG/0/",
+        "format": "crs-nts-xml",
+    },
 }
+
+
+# Namespace used by OGC CRS NTS XML identifier lists
+_CRS_NTS_NS = "http://www.opengis.net/crs-nts/1.0"
+
+
+def parse_crs_nts_xml_identifiers(url: str) -> set[str]:
+    """Fetches an OGC CRS NTS XML document and returns all <identifier> URIs.
+
+    The format looks like:
+        <identifiers xmlns='http://www.opengis.net/crs-nts/1.0' ...>
+          <identifier>https://www.opengis.net/def/crs/EPSG/0/4326</identifier>
+          ...
+        </identifiers>
+    """
+    req = urllib.request.Request(url, headers={"Accept": "application/xml"})
+    with urllib.request.urlopen(req) as resp:
+        raw = resp.read()
+    root = ET.fromstring(raw)
+    return {
+        elem.text.strip()
+        for elem in root.iter(f"{{{_CRS_NTS_NS}}}identifier")
+        if elem.text and elem.text.strip()
+    }
 
 
 def parse_vocabulary_concepts(source: str | Path, rdf_format: str) -> set[str]:
@@ -149,6 +180,7 @@ def generate_vocabulary_dict(
                     local_file = candidate
                     break
 
+        concepts = set()
         if local_file:
             print(f"Parsing local file: {local_file.name}...")
             rdf_format = "turtle" if local_file.suffix == ".ttl" else "xml"
@@ -156,10 +188,14 @@ def generate_vocabulary_dict(
         elif stem in REMOTE_VOCABULARY_SOURCES:
             meta = REMOTE_VOCABULARY_SOURCES[stem]
             print(f"Fetching from remote: {stem} ({meta['url'][:60]}...)...")
-            concepts = parse_vocabulary_concepts(meta["url"], meta["format"])
+            if meta["format"] == "crs-nts-xml":
+                concepts = parse_crs_nts_xml_identifiers(meta["url"])
+            elif meta["format"] == "rdf-xml":
+                concepts = parse_vocabulary_concepts(meta["url"], "xml")
+            elif meta["format"] == "turtle":
+                concepts = parse_vocabulary_concepts(meta["url"], "turtle")
         else:
             print(f"Warning: No local file or remote URL found for '{stem}'")
-            concepts = set()
 
         print(f"  -> Found {len(concepts)} concepts for {stem}")
 

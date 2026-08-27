@@ -312,6 +312,7 @@ STEM_PROPERTY_MAPPING: dict[str, list[str]] = {
     "places-skos": ["http://purl.org/dc/terms/spatial"],
     "NUTS": ["http://purl.org/dc/terms/spatial"],
     "distribution-status-skos": ["http://www.w3.org/ns/adms#status"],
+    "reference-systems": ["http://data.europa.eu/930/referenceSystem"],
     # "corporatebodies-skos": ["http://purl.org/dc/terms/publisher"],
 }
 
@@ -323,10 +324,12 @@ class VocabularyPolicy(str, Enum):
     OPTIONAL = "optional"
 
     def to_severity(self) -> Requirement:
-        if self == VocabularyPolicy.REQUIRED or self.name == 'AT_LEAST_1': return Requirement.MANDATORY
-        elif self == VocabularyPolicy.OPTIONAL: return Requirement.OPTIONAL
-        else: return Requirement.RECOMMENDED
-
+        if self == VocabularyPolicy.REQUIRED or self.name == "AT_LEAST_1":
+            return Requirement.MANDATORY
+        elif self == VocabularyPolicy.OPTIONAL:
+            return Requirement.OPTIONAL
+        else:
+            return Requirement.RECOMMENDED
 
 
 PROPERTY_POLICY_MAPPING_VERSIONED: dict[SpecVersion, dict[str, VocabularyPolicy]] = {
@@ -361,5 +364,6 @@ PROPERTY_POLICY_MAPPING_VERSIONED: dict[SpecVersion, dict[str, VocabularyPolicy]
         "http://purl.org/dc/terms/language": VocabularyPolicy.REQUIRED,
         "http://purl.org/dc/terms/spatial": VocabularyPolicy.RECOMMENDED,
         "http://www.w3.org/ns/adms#status": VocabularyPolicy.REQUIRED,
+        "http://data.europa.eu/930/referenceSystem": VocabularyPolicy.REQUIRED,
     },
 }
