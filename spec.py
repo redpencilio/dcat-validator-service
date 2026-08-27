@@ -9,7 +9,7 @@ class SpecVersion(str, Enum):
 
     @classmethod
     def from_value(cls, value) -> SpecVersion:
-        if value == '3.0.0':
+        if value == "3.0.0":
             return cls.V3_0_0
         return cls.V1_1_0
 
@@ -209,7 +209,7 @@ MOBILITY_DCAT_AP_SPEC_VERSIONED: dict[
                 "https://w3id.org/mobilitydcat-ap#transportMode",
                 "http://data.europa.eu/r5r/applicableLegislation",
                 "https://w3id.org/mobilitydcat-ap#assessmentResult",
-                "http://purl.org/dc/terms/hasVersion",
+                "http://www.w3.org/ns/dcat#hasVersion",
                 "http://www.w3.org/ns/dqv#hasQualityAnnotation",
                 "http://purl.org/dc/terms/identifier",
                 "http://www.w3.org/ns/adms#identifier",
@@ -235,7 +235,7 @@ MOBILITY_DCAT_AP_SPEC_VERSIONED: dict[
             ],
             Requirement.OPTIONAL: [
                 "http://purl.org/dc/terms/title",
-                "http://purl.org/dc/terms/applicableLegislation",
+                "http://data.europa.eu/r5r/applicableLegislation",
                 "https://w3id.org/mobilitydcat-ap#applicationLayerProtocol",
                 "http://purl.org/dc/terms/description",
                 "http://purl.org/dc/terms/license",
@@ -273,8 +273,8 @@ MOBILITY_DCAT_AP_SPEC_VERSIONED: dict[
             ],
             Requirement.OPTIONAL: [
                 "http://purl.org/dc/terms/accrualPeriodicity",
-                "http://purl.org/dc/terms/applicableLegislation",
-                "http://purl.org/dc/terms/contactPoint",
+                "http://data.europa.eu/r5r/applicableLegislation",
+                "http://www.w3.org/ns/dcat#contactPoint",
                 "http://purl.org/dc/terms/publisher",
                 "http://purl.org/dc/terms/issued",
                 "https://w3id.org/mobilitydcat-ap#mobilityTheme",
