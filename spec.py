@@ -312,7 +312,10 @@ STEM_PROPERTY_MAPPING: dict[str, list[str]] = {
     "places-skos": ["http://purl.org/dc/terms/spatial"],
     "NUTS": ["http://purl.org/dc/terms/spatial"],
     "distribution-status-skos": ["http://www.w3.org/ns/adms#status"],
-    "reference-systems": ["http://data.europa.eu/930/referenceSystem"],
+    "reference-systems": [
+        "http://data.europa.eu/930/referenceSystem",
+        "http://purl.org/dc/terms/conformsTo",
+    ],
     # "corporatebodies-skos": ["http://purl.org/dc/terms/publisher"],
 }
 
@@ -348,6 +351,7 @@ PROPERTY_POLICY_MAPPING_VERSIONED: dict[SpecVersion, dict[str, VocabularyPolicy]
         "http://purl.org/dc/terms/format": VocabularyPolicy.REQUIRED,
         "http://purl.org/dc/terms/language": VocabularyPolicy.REQUIRED,
         "http://purl.org/dc/terms/spatial": VocabularyPolicy.REQUIRED,
+        "http://purl.org/dc/terms/conformsTo": VocabularyPolicy.OPTIONAL,
     },
     SpecVersion.V3_0_0: {
         "https://w3id.org/mobilitydcat-ap#transportMode": VocabularyPolicy.AT_LEAST_1,
