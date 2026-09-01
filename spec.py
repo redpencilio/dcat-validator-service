@@ -371,3 +371,10 @@ PROPERTY_POLICY_MAPPING_VERSIONED: dict[SpecVersion, dict[str, VocabularyPolicy]
         "http://data.europa.eu/930/referenceSystem": VocabularyPolicy.REQUIRED,
     },
 }
+
+# Maps V3.0.0 to V1.1.0 outdated term
+VOCABULARY_VERSION_TRANSLATIONS: dict[str, str] = {
+    "http://purl.org/dc/terms/issued": "http://purl.org/dc/terms/created",
+    "http://www.w3.org/ns/dcat#version": "http://www.w3.org/2002/07/owl#versionInfo",
+    "http://www.w3.org/ns/dcat#hasVersion": "http://purl.org/dc/terms/hasVersion",
+}
