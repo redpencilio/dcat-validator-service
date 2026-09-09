@@ -21,7 +21,8 @@ from constants import (
     VALIDATION_SUMMARY_URI_PREFIX, TARGET_CLASS_SUMMARY_URI_PREFIX,
     RULE_SUMMARY_URI_PREFIX, SHACL_REPORT_PREDICATE
 )
-from spec import DCAT_CLASSES, SHACL_BASE_PATH, SHACL_FILES_VERSIONED
+from spec import DCAT_CLASSES_VERSIONED, SHACL_BASE_PATH, SHACL_FILES_VERSIONED, SpecVersion
+from task import Task
 from utils import from_binding, store_graph, save_json_report
 import task_runner
 from custom_exceptions import ResourceNotFoundError
@@ -39,7 +40,7 @@ class ValidationResult:
     result_graph: str
     result_text: str
 
-def run_shacl_validation_task(task):
+def run_shacl_validation_task(task: Task):
     input = get_input(task.input, DATA_GRAPH)
     if not input:
         raise ResourceNotFoundError("The harvested data graph could not be found.")
@@ -57,8 +58,7 @@ def run_shacl_validation_task(task):
 
     shacl_graph = rdflib.Graph()
 
-    filenames = SHACL_FILES_VERSIONED.get(task.dcat_ap_version) or SHACL_FILES_VERSIONED['1.1.0']
-    for filename in filenames:
+    for filename in SHACL_FILES_VERSIONED[SpecVersion.from_value(task.dcat_ap_version)]:
         path = os.path.join(SHACL_BASE_PATH, filename)
         shacl_graph.parse(path)
 
@@ -83,7 +83,7 @@ def run_shacl_validation_task(task):
     # Store the graph after we stored the result so we don't lose track of which graph belongs to which result
     store_graph(result_graph, result_graph_uri)
 
-    summary_uri = create_shacl_summary(result_graph_uri, input.data_graph, PUBLIC_GRAPH)
+    summary_uri = create_shacl_summary(result_graph_uri, input.data_graph, PUBLIC_GRAPH, SpecVersion.from_value(task.dcat_ap_version))
     task_runner.link_report_to_job(task.uri, summary_uri, predicate_uri=SHACL_REPORT_PREDICATE, graph=TASKS_GRAPH)
 
     return result_uri
@@ -91,9 +91,9 @@ def run_shacl_validation_task(task):
 task_runner.register(SHACL_VALIDATION_OPERATION, run_shacl_validation_task)
 
 
-def aggregate_shacl_violations(result_graph_uri: str, data_graph_uri: str) -> dict:
+def aggregate_shacl_violations(result_graph_uri: str, data_graph_uri: str, dcat_ap_version=SpecVersion.V1_1_0) -> dict:
     """Group sh:ValidationResult entries by (class, path, shape, severity)."""
-    values = " ".join(sparql_escape_uri(c) for c in DCAT_CLASSES)
+    values = " ".join(sparql_escape_uri(c) for c in DCAT_CLASSES_VERSIONED[dcat_ap_version])
     q = f"""
 PREFIX sh: <http://www.w3.org/ns/shacl#>
 
@@ -141,7 +141,7 @@ SELECT (COUNT(DISTINCT ?s) as ?count) WHERE {{
     return int(bindings[0]["count"]["value"]) if bindings else 0
 
 
-def create_shacl_summary(result_graph_uri: str, data_graph_uri: str, graph: str) -> str:
+def create_shacl_summary(result_graph_uri: str, data_graph_uri: str, graph: str, dcat_ap_version=SpecVersion.V1_1_0) -> str:
     by_class = aggregate_shacl_violations(result_graph_uri, data_graph_uri)
 
     if mode == "development":
