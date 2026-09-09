@@ -93,7 +93,7 @@ def get_vocabulary_dict() -> dict[str, set[str]] | None:
 
 
 ALLOWED_VOCABULARIES = get_vocabulary_dict()
-suggestions_engine = SuggestionsEngine(ALLOWED_VOCABULARIES)
+suggestions_engine = SuggestionsEngine(ALLOWED_VOCABULARIES or {})
 suggestions_engine.vectorize()  # Can be skipped if not using cosine distance (but fuzzy finding)
 
 AT_LEAST_ONE_VOCAB_PROPERTIES: set[str] = {
