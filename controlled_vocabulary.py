@@ -174,7 +174,7 @@ def get_property_violations(
                 ?s a {sparql_escape_uri(dcat_class)};
                     {sparql_escape_uri(term_predicate)} ?term.
                 OPTIONAL {{
-                    ?term dct:identifier | skos:exactMatch | skos:inScheme ?identifier .
+                    ?term dct:identifier ?identifier .
                     FILTER(isIRI(?identifier))
                 }}
             }}
