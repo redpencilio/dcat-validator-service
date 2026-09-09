@@ -9,6 +9,12 @@ import numpy as np
 from rapidfuzz import fuzz
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+from enum import Enum
+
+class Scorer(str, Enum): 
+    PREVEC_COSINE = "prevectorized cosine",
+    UNVEC_COSINE = "unvectorized cosine"
+    FUZZY = "fuzzy search"
 
 
 @dataclass
@@ -22,6 +28,12 @@ class VectorizedVocabulary:
 
 
 class SuggestionsEngine:
+    """Class to get similar strings from a predefined dictionary
+
+    Attributes:
+        vocab_dict: the vocabulary to check against
+    """
+
     def __init__(self, vocab_dict: dict[str, set[str]]):
         self.vocab_dict = vocab_dict
         self.by_uri: dict[str, VectorizedVocabulary] = {}
@@ -29,6 +41,10 @@ class SuggestionsEngine:
         self.vectorized = False
 
     def vectorize(self):
+        """Vectorizes the vocabulary using Tfidf vectorization
+
+        Do this if you intend to use cosine similarity as scorer
+        """
         for prop_uri, candidates in self.vocab_dict.items():
             cand_list = list(candidates)
             if not cand_list:
@@ -104,7 +120,11 @@ class SuggestionsEngine:
         return 0.2 * prefix_score + 0.8 * postfix_score
 
     def uri_score_cosine(self, query: str, candidate: str) -> float:
-        """Calculate cosine similarity score (0.0 to 100.0) between two URIs (pairwise fallback)."""
+        """Calculate cosine similarity score (0.0 to 100.0) between two URIs (pairwise fallback).
+
+        Not actually used
+        """
+
         if query.strip().rstrip("/") == candidate.strip().rstrip("/"):
             return 100.0
         q = self.__split_prefix_postfix(query)
@@ -178,7 +198,7 @@ class SuggestionsEngine:
         self,
         queries: list[str],
         candidates: set[str] | list[str],
-        scorer: Callable[[str, str], float],
+        scorer: Scorer,
         limit: int = 3,
         cutoff: float = 50.0,
     ) -> dict[str, list[tuple[str, float]]]:
@@ -188,7 +208,7 @@ class SuggestionsEngine:
         - RapidFuzz scorers: self.uri_score_fuzzy_split, fuzz.WRatio, etc.
         - Cosine distance: self.uri_score_cosine (automatically uses ultra-fast matrix acceleration)
         """
-        if scorer == self.uri_score_cosine:
+        if scorer == Scorer.PREVEC_COSINE:
             if self.vectorized:
                 cand_key = frozenset(candidates)
                 if cand_key in self.by_cand:
@@ -199,14 +219,20 @@ class SuggestionsEngine:
                         cutoff=cutoff,
                     )
             else:
-                print("Tried to calculate cosine similarity but vocabulary was not vectorized first... using fuzzyfinding as fallback.")
-                scorer = self.uri_score_fuzzy_split
+                print(
+                    "Tried to calculate cosine similarity but vocabulary was not vectorized first... using fuzzyfinding as fallback."
+                )
+
+        if scorer == Scorer.UNVEC_COSINE:
+            scorer_fn = self.uri_score_cosine
+        else: #Falling back on fuzzy finding
+            scorer_fn = self.uri_score_fuzzy_split
 
         results: dict[str, list[tuple[str, float]]] = {}
         for query in queries:
             matched: list[tuple[str, float]] = []
             for candidate in candidates:
-                score = scorer(query, candidate)
+                score = scorer_fn(query, candidate)
                 if score >= cutoff:
                     matched.append((candidate, score))
                 elif score == 100.0:
