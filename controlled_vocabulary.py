@@ -27,7 +27,7 @@ from constants import (
     VOCABULARY_ANALYSIS_OPERATION,
 )
 from custom_exceptions import ResourceNotFoundError
-from smart_suggestions import SuggestionsEngine
+from smart_suggestions import SuggestionsEngine, Scorer
 from spec import (
     DCAT_CLASSES_VERSIONED,
     MOBILITY_DCAT_AP_SPEC_VERSIONED,
@@ -267,7 +267,7 @@ def get_property_violations(
         allowed,
         limit=3,
         cutoff=50,
-        scorer=suggestions_engine.uri_score_cosine,
+        scorer=Scorer.PREVEC_COSINE
     )
 
     return [
