@@ -25,7 +25,6 @@ from spec import DCAT_CLASSES, SHACL_BASE_PATH, SHACL_FILES_VERSIONED
 from utils import from_binding, store_graph, save_json_report
 import task_runner
 from custom_exceptions import ResourceNotFoundError
-import os
 
 mode = os.getenv("MODE", "production")
 
