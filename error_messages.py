@@ -2,13 +2,13 @@ import urllib.error
 
 import SPARQLWrapper.SPARQLExceptions
 
-from custom_exceptions import InputNotFoundError
+from custom_exceptions import ResourceNotFoundError
 
 
 def format_human_readable_error(e: Exception) -> str:
-    if isinstance(e, InputNotFoundError):
+    if isinstance(e, ResourceNotFoundError):
         return (
-            "Internal Error: The validator could not locate the harvested data graph."
+            f"Internal Error: {e}"
         )
 
     elif isinstance(e, MemoryError):

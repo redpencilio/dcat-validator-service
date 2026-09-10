@@ -1,3 +1,4 @@
+import os
 from typing import Optional
 from dataclasses import dataclass
 from string import Template
@@ -18,11 +19,15 @@ from constants import (
     MU_SPARQL_ENDPOINT, SHACL_VALIDATION_RESULT_URI_PREFIX,
     SHACL_VALIDATION_RESULT_GRAPH_URI_PREFIX,
     VALIDATION_SUMMARY_URI_PREFIX, TARGET_CLASS_SUMMARY_URI_PREFIX,
-    RULE_SUMMARY_URI_PREFIX, SHACL_REPORT_PREDICATE,
+    RULE_SUMMARY_URI_PREFIX, SHACL_REPORT_PREDICATE
 )
-from utils import from_binding, store_graph
+from spec import DCAT_CLASSES_VERSIONED, SHACL_BASE_PATH, SHACL_FILES_VERSIONED, SpecVersion
+from task import Task
+from utils import from_binding, store_graph, save_json_report
 import task_runner
-from custom_exceptions import InputNotFoundError
+from custom_exceptions import ResourceNotFoundError
+
+mode = os.getenv("MODE", "production")
 
 @dataclass
 class ValidationInput:
@@ -35,10 +40,10 @@ class ValidationResult:
     result_graph: str
     result_text: str
 
-def run_shacl_validation_task(task):
+def run_shacl_validation_task(task: Task):
     input = get_input(task.input, DATA_GRAPH)
     if not input:
-        raise InputNotFoundError(f"Input {task.input} not found!")
+        raise ResourceNotFoundError("The harvested data graph could not be found.")
 
     store = sparql_store.SPARQLStore(MU_SPARQL_ENDPOINT, headers={'mu-auth-sudo': 'true'})
 
@@ -52,13 +57,14 @@ def run_shacl_validation_task(task):
     # shacl_graph.add = ignore
 
     shacl_graph = rdflib.Graph()
-    shacl_graph.parse(
-        "https://raw.githubusercontent.com/mobilityDCAT-AP/mobilityDCAT-AP/gh-pages/releases/1.1.0/shaclShapes/mobilitydcat-ap_1.1.0_shacl_shapes.ttl"
-    )
+
+    for filename in SHACL_FILES_VERSIONED[SpecVersion.from_value(task.dcat_ap_version)]:
+        path = os.path.join(SHACL_BASE_PATH, filename)
+        shacl_graph.parse(path)
 
     (conforms, result_graph, result_text) = pyshacl.validate(
         data_graph=data_graph,
-        shacl_graph=shacl_graph
+        shacl_graph=shacl_graph,
     )
 
     result_graph = result_graph.skolemize(authority='http://mu.semte.ch', basepath='.well-known/genid/pyshacl-validation-result/')
@@ -77,7 +83,7 @@ def run_shacl_validation_task(task):
     # Store the graph after we stored the result so we don't lose track of which graph belongs to which result
     store_graph(result_graph, result_graph_uri)
 
-    summary_uri = create_shacl_summary(result_graph_uri, input.data_graph, PUBLIC_GRAPH)
+    summary_uri = create_shacl_summary(result_graph_uri, input.data_graph, PUBLIC_GRAPH, SpecVersion.from_value(task.dcat_ap_version))
     task_runner.link_report_to_job(task.uri, summary_uri, predicate_uri=SHACL_REPORT_PREDICATE, graph=TASKS_GRAPH)
 
     return result_uri
@@ -85,33 +91,27 @@ def run_shacl_validation_task(task):
 task_runner.register(SHACL_VALIDATION_OPERATION, run_shacl_validation_task)
 
 
-DCAT_CLASSES = [
-    "http://www.w3.org/ns/dcat#Catalog",
-    "http://www.w3.org/ns/dcat#Dataset",
-    "http://www.w3.org/ns/dcat#Distribution",
-    "http://www.w3.org/ns/dcat#CatalogRecord",
-]
-
-
-def aggregate_shacl_violations(result_graph_uri: str, data_graph_uri: str) -> dict:
+def aggregate_shacl_violations(result_graph_uri: str, data_graph_uri: str, dcat_ap_version=SpecVersion.V1_1_0) -> dict:
     """Group sh:ValidationResult entries by (class, path, shape, severity)."""
-    values = " ".join(sparql_escape_uri(c) for c in DCAT_CLASSES)
+    values = " ".join(sparql_escape_uri(c) for c in DCAT_CLASSES_VERSIONED[dcat_ap_version])
     q = f"""
 PREFIX sh: <http://www.w3.org/ns/shacl#>
 
-SELECT ?class ?path ?shape ?severity (COUNT(DISTINCT ?result) as ?count) WHERE {{
+SELECT ?class ?path ?shape ?severity ?constraint (SAMPLE(?msg) as ?message) (COUNT(DISTINCT ?result) as ?count) WHERE {{
     GRAPH {sparql_escape_uri(result_graph_uri)} {{
         ?result a sh:ValidationResult ;
             sh:resultSeverity ?severity ;
             sh:focusNode ?node .
         OPTIONAL {{ ?result sh:resultPath ?path }}
         OPTIONAL {{ ?result sh:sourceShape ?shape }}
+        OPTIONAL {{ ?result sh:sourceConstraintComponent ?constraint }}
+        OPTIONAL {{ ?result sh:resultMessage ?msg }}
     }}
     GRAPH {sparql_escape_uri(data_graph_uri)} {{
         ?node a ?class .
         VALUES ?class {{ {values} }}
     }}
-}} GROUP BY ?class ?path ?shape ?severity
+}} GROUP BY ?class ?path ?shape ?severity ?constraint
 """
     res = query(q)
     by_class = {}
@@ -121,7 +121,9 @@ SELECT ?class ?path ?shape ?severity (COUNT(DISTINCT ?result) as ?count) WHERE {
             "path": b.get("path", {}).get("value"),
             "shape": b.get("shape", {}).get("value"),
             "severity": b["severity"]["value"],
-            "count": int(b["count"]["value"]),
+            "constraint": b.get("constraint", {}).get("value"),
+            "message": b.get("message", {}).get("value"),
+            "count": int(b["count"]["value"])
         })
     return by_class
 
@@ -139,8 +141,12 @@ SELECT (COUNT(DISTINCT ?s) as ?count) WHERE {{
     return int(bindings[0]["count"]["value"]) if bindings else 0
 
 
-def create_shacl_summary(result_graph_uri: str, data_graph_uri: str, graph: str) -> str:
+def create_shacl_summary(result_graph_uri: str, data_graph_uri: str, graph: str, dcat_ap_version=SpecVersion.V1_1_0) -> str:
     by_class = aggregate_shacl_violations(result_graph_uri, data_graph_uri)
+
+    if mode == "development":
+        save_json_report(by_class, "/app/shacl_report.json")
+
     total_violations = sum(row["count"] for rows in by_class.values() for row in rows)
 
     summary_uuid = generate_uuid()
@@ -181,6 +187,10 @@ def create_shacl_summary(result_graph_uri: str, data_graph_uri: str, graph: str)
                 rs += f" ; shv:hasRuleConstraint {sparql_escape_uri(row['path'])}"
             if row["shape"]:
                 rs += f" ; shv:hasRule {sparql_escape_uri(row['shape'])}"
+            if row["message"]:
+                rs += f" ; shv:message {sparql_escape_string(row['message'])}"
+            if row["constraint"]:
+                rs += f" ; shv:sourceConstraintComponent {sparql_escape_uri(row['constraint'])}"
             rs += " ."
             triples.append(rs)
 
