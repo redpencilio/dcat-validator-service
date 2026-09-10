@@ -17,10 +17,10 @@ from constants import (
     TARGET_CLASS_SUMMARY_URI_PREFIX,
     RULE_SUMMARY_URI_PREFIX,
 )
-from spec import Requirement, SEVERITY, MOBILITY_DCAT_AP_SPEC
+from spec import Requirement, SEVERITY, MOBILITY_DCAT_AP_SPEC_VERSIONED, SpecVersion
+from task import Task
 import task_runner
 from utils import save_json_report, get_endpoint_url, count_entities
-
 from custom_exceptions import ResourceNotFoundError
 mode = os.getenv("MODE", "production")
 
@@ -72,24 +72,24 @@ SELECT ?data_graph WHERE {{
     return bindings[0]["data_graph"]["value"] if bindings else None
 
 
-def run_coverage_analysis_task(task):
+def run_coverage_analysis_task(task: Task):
     data_graph = get_data_graph(task.input, DATA_GRAPH)
     if not data_graph:
         raise ResourceNotFoundError("The harvested data graph could not be found.")
 
     endpoint_url = get_endpoint_url(task.uri)
-    coverage_result = compute_coverage(data_graph=data_graph)
+    coverage_result = compute_coverage(data_graph=data_graph, dcat_ap_version=SpecVersion.from_value(task.dcat_ap_version))
     coverage_summary_uri = save_summary(coverage_result, endpoint_url=endpoint_url, graph=PUBLIC_GRAPH)
     task_runner.link_report_to_job(task.uri, coverage_summary_uri, predicate_uri=COVERAGE_REPORT_PREDICATE, graph=TASKS_GRAPH)
     return coverage_summary_uri
 
 task_runner.register(COVERAGE_ANALYSIS_OPERATION, run_coverage_analysis_task)
 
-def compute_coverage(data_graph: str) -> CoverageResult:
+def compute_coverage(data_graph: str, dcat_ap_version=SpecVersion.V1_1_0) -> CoverageResult:
     class_coverages = []
     total_violations = 0
 
-    for class_uri, requirement_props in MOBILITY_DCAT_AP_SPEC.items():
+    for class_uri, requirement_props in MOBILITY_DCAT_AP_SPEC_VERSIONED[dcat_ap_version].items():
         total = count_entities(data_graph, class_uri)
         all_props = [p for props in requirement_props.values() for p in props]
         prop_counts = count_entities_with_property(data_graph, class_uri, all_props)

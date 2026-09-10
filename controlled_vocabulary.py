@@ -1,12 +1,16 @@
 from __future__ import annotations
-from custom_exceptions import ResourceNotFoundError
 
 import json
 import os
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from escape_helpers import sparql_escape_int, sparql_escape_string, sparql_escape_uri
+from escape_helpers import (
+    sparql_escape_float,
+    sparql_escape_int,
+    sparql_escape_string,
+    sparql_escape_uri,
+)
 from helpers import generate_uuid
 
 import task_runner
@@ -17,14 +21,20 @@ from constants import (
     RULE_VIOLATION_URI_PREFIX,
     TARGET_CLASS_SUMMARY_URI_PREFIX,
     TASKS_GRAPH,
+    TERM_SUGGESTION_URI_PREFIX,
     VALIDATION_SUMMARY_URI_PREFIX,
     VOCAB_REPORT_PREDICATE,
     VOCABULARY_ANALYSIS_OPERATION,
 )
+from custom_exceptions import ResourceNotFoundError
+from smart_suggestions import SuggestionsEngine, Scorer
 from spec import (
-    DCAT_CLASSES,
-    MOBILITY_DCAT_AP_SPEC,
+    DCAT_CLASSES_VERSIONED,
+    MOBILITY_DCAT_AP_SPEC_VERSIONED,
+    PROPERTY_POLICY_MAPPING_VERSIONED,
     SEVERITY,
+    SpecVersion,
+    VocabularyPolicy,
 )
 from sudo_query import query_sudo as query
 from sudo_query import update_sudo as update
@@ -37,7 +47,7 @@ mode = os.getenv("MODE", "production")
 @dataclass
 class VocabularyRuleSumary:
     property_uri: str
-    invalid_terms: list[str]
+    invalid_terms: dict[str, list[tuple[str, float]]]
     violation_count: int
     severity: str
 
@@ -86,33 +96,26 @@ def get_vocabulary_dict() -> dict[str, set[str]] | None:
 
 
 ALLOWED_VOCABULARIES = get_vocabulary_dict()
-
-AT_LEAST_ONE_VOCAB_PROPERTIES: set[str] = {
-    "https://w3id.org/mobilitydcat-ap#mobilityTheme",
-    "http://www.w3.org/ns/dcat#theme",
-    "https://w3id.org/mobilitydcat-ap#georeferencingMethod",
-    "https://w3id.org/mobilitydcat-ap#networkCoverage",
-    "https://w3id.org/mobilitydcat-ap#transportMode",
-    "https://w3id.org/mobilitydcat-ap#intendedInformationService",
-    "https://w3id.org/mobilitydcat-ap#mobilityDataStandard",
-    "https://w3id.org/mobilitydcat-ap#applicationLayerProtocol",
-}
+suggestions_engine = SuggestionsEngine(ALLOWED_VOCABULARIES or {})
+suggestions_engine.vectorize()  # Can be skipped if not using cosine distance (but fuzzy finding)
 
 
 def compute_vocabulary_compliance(
-    data_graph_uri: str, dcat_ap_version: str
+    data_graph_uri: str, dcat_ap_version: SpecVersion
 ) -> VocabularyResult:
 
     class_compliances: list[ClassVocabularyCompliance] = []
     grand_total_violations = 0
 
-    for dcat_class in DCAT_CLASSES:
+    for dcat_class in DCAT_CLASSES_VERSIONED[dcat_ap_version]:
         class_vocabulary_rules: list[VocabularyRuleSumary] = []
 
         total_entities = count_entities(data_graph_uri, dcat_class)
 
         if not ALLOWED_VOCABULARIES:
-            raise ResourceNotFoundError("Controlled vocabulary data could not be found.")
+            raise ResourceNotFoundError(
+                "Controlled vocabulary data could not be found."
+            )
         for term in ALLOWED_VOCABULARIES:
             violations = get_property_violations(
                 data_graph_uri,
@@ -146,18 +149,22 @@ def get_property_violations(
     data_graph_uri: str,
     dcat_class: str,
     term_predicate: str,
-    dcat_ap_version: str = "1.1.0",
+    dcat_ap_version: SpecVersion,
 ) -> list[VocabularyRuleSumary]:
     # Check if this property is applicable to this DCAT class
-    class_reqs = MOBILITY_DCAT_AP_SPEC.get(dcat_class, {})
+    class_reqs = MOBILITY_DCAT_AP_SPEC_VERSIONED[dcat_ap_version].get(dcat_class, {})
     severity = None
     for req, props in class_reqs.items():
         if term_predicate in props:
             severity = SEVERITY[req]
             break
 
-    if not severity:
+    vocab_policy = PROPERTY_POLICY_MAPPING_VERSIONED[dcat_ap_version].get(
+        term_predicate
+    )
+    if not vocab_policy:
         return []
+    severity = vocab_policy.to_severity()
 
     q = f"""
         PREFIX dct: <http://purl.org/dc/terms/>
@@ -203,12 +210,6 @@ def get_property_violations(
 
     allowed = ALLOWED_VOCABULARIES[term_predicate]
 
-    # "At least one" rule applies for mobilityDCAT-AP v3.0.0+ on specific properties
-    is_at_least_one_rule = (
-        dcat_ap_version.startswith("3")
-        and term_predicate in AT_LEAST_ONE_VOCAB_PROPERTIES
-    )
-
     for s, terms_dict in resources_map.items():
         resource_has_valid_term = False
         resource_invalid_terms = set()
@@ -245,7 +246,7 @@ def get_property_violations(
                 else:
                     resource_invalid_terms.add(term_val)
 
-        if is_at_least_one_rule:
+        if vocab_policy == VocabularyPolicy.AT_LEAST_1:
             # Rule: At least 1 value from controlled vocabulary.
             # If the resource has at least one valid term, non-controlled vocabulary values are tolerated.
             # If the resource has NO valid term from the controlled vocabulary, mark it non-compliant.
@@ -260,12 +261,19 @@ def get_property_violations(
 
     formatted_invalid_terms = sorted(invalid_terms)
     if len(formatted_invalid_terms) > 11:
-        formatted_invalid_terms = formatted_invalid_terms[:11]
+        formatted_invalid_terms: list[str] = formatted_invalid_terms[:11]
+    similar_uris = suggestions_engine.get_similar_uris(
+        formatted_invalid_terms,
+        allowed,
+        limit=3,
+        cutoff=50,
+        scorer=Scorer.PREVEC_COSINE
+    )
 
     return [
         VocabularyRuleSumary(
             property_uri=term_predicate,
-            invalid_terms=formatted_invalid_terms,
+            invalid_terms=similar_uris,
             violation_count=len(non_compliant_resources),
             severity=severity,
         )
@@ -324,7 +332,7 @@ def save_vocabulary_summary(
                 f"shv:violationCount {sparql_escape_int(vr.violation_count)} ; "
                 f"shv:hasSeverity {sparql_escape_uri(vr.severity)} ."
             )
-            for invalid_term in vr.invalid_terms:
+            for invalid_term, suggestions in vr.invalid_terms.items():
                 rv_uuid = generate_uuid()
                 rv_uri = RULE_VIOLATION_URI_PREFIX + rv_uuid
                 triples.append(
@@ -335,6 +343,18 @@ def save_vocabulary_summary(
                     f"mu:uuid {sparql_escape_string(rv_uuid)} ; "
                     f"shv:value {sparql_escape_string(invalid_term)} . "
                 )
+                for suggestion in suggestions:
+                    sug_uuid = generate_uuid()
+                    sug_uri = TERM_SUGGESTION_URI_PREFIX + sug_uuid
+                    triples.append(
+                        f"{sparql_escape_uri(rv_uri)} shv:hasSuggestion {sparql_escape_uri(sug_uri)} . "
+                    )
+                    triples.append(
+                        f"{sparql_escape_uri(sug_uri)} a shv:TermSuggestion ; "
+                        f"mu:uuid {sparql_escape_string(sug_uuid)} ; "
+                        f"shv:value {sparql_escape_string(suggestion[0])} ; "
+                        f"shv:score {sparql_escape_float(suggestion[1])} . "
+                    )
 
     q = f"""
 PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
@@ -383,7 +403,8 @@ def run_vocabulary_analysis_task(task: Task):
 
     endpoint_url = get_endpoint_url(task.uri)
     vocabulary_result = compute_vocabulary_compliance(
-        data_graph_uri=data_graph, dcat_ap_version=task.dcat_ap_version or "1.1.0"
+        data_graph_uri=data_graph,
+        dcat_ap_version=SpecVersion.from_value(task.dcat_ap_version),
     )
     vocabulary_summary_uri = save_vocabulary_summary(
         vocabulary_result, endpoint_url=endpoint_url, graph=PUBLIC_GRAPH
