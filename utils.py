@@ -77,7 +77,6 @@ SELECT ?url WHERE {{
     bindings = res.get("results", {}).get("bindings", [])
     return bindings[0]["url"]["value"] if bindings else None
 
-
 def count_entities(data_graph_uri: str, dcat_class: str) -> int:
     q = f"""
         SELECT (COUNT(DISTINCT ?s) as ?count) WHERE {{
