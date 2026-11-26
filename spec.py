@@ -201,7 +201,6 @@ MOBILITY_DCAT_AP_SPEC_VERSIONED: dict[
                 "http://www.w3.org/ns/dcat#contactPoint",
                 "http://www.w3.org/ns/dcat#keyword",
                 "https://w3id.org/mobilitydcat-ap#networkCoverage",
-                "http://purl.org/dc/terms/conformsTo",
                 "http://purl.org/dc/terms/rightsHolder",
                 "http://purl.org/dc/terms/temporal",
                 "http://www.w3.org/ns/dcat#theme",
