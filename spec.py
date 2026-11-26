@@ -325,7 +325,7 @@ class VocabularyPolicy(str, Enum):
     OPTIONAL = "optional"
 
     def to_severity(self) -> Requirement:
-        if self == VocabularyPolicy.REQUIRED or self.name == "AT_LEAST_1":
+        if self == VocabularyPolicy.REQUIRED:
             return Requirement.MANDATORY
         elif self == VocabularyPolicy.OPTIONAL:
             return Requirement.OPTIONAL
