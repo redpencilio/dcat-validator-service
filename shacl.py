@@ -142,7 +142,7 @@ SELECT (COUNT(DISTINCT ?s) as ?count) WHERE {{
 
 
 def create_shacl_summary(result_graph_uri: str, data_graph_uri: str, graph: str, dcat_ap_version=SpecVersion.V1_1_0) -> str:
-    by_class = aggregate_shacl_violations(result_graph_uri, data_graph_uri)
+    by_class = aggregate_shacl_violations(result_graph_uri, data_graph_uri, dcat_ap_version=dcat_ap_version)
 
     if mode == "development":
         save_json_report(by_class, "/app/shacl_report.json")
