@@ -55,7 +55,7 @@ def run_tasks():
         try:
             run_task(actionable_task)
         except:
-            logger.warn(
+            logger.warning(
                 f"Problem while running task {actionable_task.uri}, operation {actionable_task.operation}"
             )
 

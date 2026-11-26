@@ -1,0 +1,8 @@
+.git
+.venv
+.mu-template-stubs
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.log
