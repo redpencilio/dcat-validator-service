@@ -164,7 +164,7 @@ def get_property_violations(
     )
     if not vocab_policy:
         return []
-    severity = vocab_policy.to_severity()
+    severity = SEVERITY[vocab_policy.to_severity()]
 
     q = f"""
         PREFIX dct: <http://purl.org/dc/terms/>
