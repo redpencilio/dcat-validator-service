@@ -35,12 +35,13 @@ SHACL_BASE_PATH = "/app/shacl-files"
 
 SHACL_FILES_VERSIONED: dict[SpecVersion, list[str]] = {
     SpecVersion.V1_1_0: [
-        "v1.1.0/mobilitydcat-ap_1.1.0_shacl_shapes.ttl",
-        # "v1.1.0/dcat-ap_2.0.1_shacl_shapes.ttl",
-        # "v1.1.0/mobilitydcat-ap_1.1.0_shacl_range.ttl",
-        # "v1.1.0/mobilitydcat-ap_1.1.0_shacl_mdr-vocabularies.shape.ttl" --> This is handled by python scriptes now
+        "v1.1.0/shapes.ttl",
+        "v1.1.0/dcat-ap-2.0.1-shapes.ttl",  # modified , it excludes sh:class constraints that produce false postivies
+        # "v1.1.0/ranges.ttl",                  --> Duplicated in dcat-ap-2.0.1-shapes.ttl
+        # "v1.1.0/mdr-vocabularies.ttl"         --> This is handled by python scripts now
     ],
     SpecVersion.V3_0_0: [
+        "v3.0.0/dcat-ap-3.0.1-shapes.ttl",
         "v3.0.0/shapes.ttl",
         "v3.0.0/ranges.ttl",
         "v3.0.0/deprecated-uris.ttl",
