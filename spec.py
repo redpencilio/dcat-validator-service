@@ -40,10 +40,9 @@ SHACL_FILES_VERSIONED: dict[SpecVersion, list[str]] = {
         # "v1.1.0/mobilitydcat-ap_1.1.0_shacl_mdr-vocabularies.shape.ttl" --> This is handled by python scriptes now
     ],
     SpecVersion.V3_0_0: [
-        "v3.0.0/mobilitydcat-ap-shacl.ttl",
-        # "v3.0.0/dqv.ttl",
-        # "v3.0.0/dcat-ap-SHACL.ttl",
-        # "v3.0.0/mobilitydcat-ap-shacl-ranges.ttl",
+        "v3.0.0/shapes.ttl",
+        "v3.0.0/ranges.ttl",
+        "v3.0.0/deprecated-uris.ttl"
     ],
 }
 
