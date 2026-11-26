@@ -1,7 +1,6 @@
 """
 Generates vocabularies.json by parsing controlled vocabulary files (from local files or remote URLs)
-into a compact JSON dictionary mapping DCAT property URIs to allowed Concept URIs.
-"""
+into a compact JSON dictionary mapping DCAT property URIs to allowed Concept URIs."""
 
 from __future__ import annotations
 
@@ -166,10 +165,14 @@ def parse_vocabulary_concepts(
         g.parse(source.absolute(), format=rdf_format)
     else:
         g.parse(source, format=rdf_format)
-    concepts = {str(term) for term in g.subjects(predicate=RDF.type, object=SKOS.Concept)}
+    concepts = {
+        str(term) for term in g.subjects(predicate=RDF.type, object=SKOS.Concept)
+    }
     if scheme_uri:
         scheme_ref = rdflib.URIRef(scheme_uri)
-        in_scheme = {str(term) for term in g.subjects(predicate=SKOS.inScheme, object=scheme_ref)}
+        in_scheme = {
+            str(term) for term in g.subjects(predicate=SKOS.inScheme, object=scheme_ref)
+        }
         concepts &= in_scheme
     return concepts
 
@@ -188,16 +191,22 @@ def _load_stem_concepts(stem: str, local_dir: Path) -> set[str]:
     if local_file:
         print(f"Parsing local file: {local_file.name}...")
         rdf_format = "turtle" if local_file.suffix == ".ttl" else "xml"
-        concepts = parse_vocabulary_concepts(local_file, rdf_format, scheme_uri=scheme_uri)
+        concepts = parse_vocabulary_concepts(
+            local_file, rdf_format, scheme_uri=scheme_uri
+        )
     elif stem in REMOTE_VOCABULARY_SOURCES:
         meta = REMOTE_VOCABULARY_SOURCES[stem]
         print(f"Fetching from remote: {stem} ({meta['url'][:60]}...)...")
         if meta["format"] == "crs-nts-xml":
             concepts = parse_crs_nts_xml_identifiers(meta["url"])
         elif meta["format"] == "rdf-xml":
-            concepts = parse_vocabulary_concepts(meta["url"], "xml", scheme_uri=scheme_uri)
+            concepts = parse_vocabulary_concepts(
+                meta["url"], "xml", scheme_uri=scheme_uri
+            )
         elif meta["format"] == "turtle":
-            concepts = parse_vocabulary_concepts(meta["url"], "turtle", scheme_uri=scheme_uri)
+            concepts = parse_vocabulary_concepts(
+                meta["url"], "turtle", scheme_uri=scheme_uri
+            )
     else:
         print(f"Warning: No local file or remote URL found for '{stem}'")
 
@@ -224,7 +233,9 @@ def generate_vocabulary_dict(
     for stem, predicates in STEM_PROPERTY_MAPPING.items():
         concepts = _load_stem_concepts(stem, local_dir)
         for predicate in predicates:
-            properties_dict[predicate] = properties_dict.get(predicate, set()).union(concepts)
+            properties_dict[predicate] = properties_dict.get(predicate, set()).union(
+                concepts
+            )
 
     class_properties_dict: dict[str, dict[str, set[str]]] = {}
     for stem, class_predicates in STEM_CLASS_PROPERTY_MAPPING.items():
