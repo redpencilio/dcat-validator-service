@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from enum import Enum
+import re
 
 
 class SpecVersion(str, Enum):
@@ -42,7 +43,7 @@ SHACL_FILES_VERSIONED: dict[SpecVersion, list[str]] = {
     SpecVersion.V3_0_0: [
         "v3.0.0/shapes.ttl",
         "v3.0.0/ranges.ttl",
-        "v3.0.0/deprecated-uris.ttl"
+        "v3.0.0/deprecated-uris.ttl",
     ],
 }
 
@@ -310,11 +311,28 @@ STEM_PROPERTY_MAPPING: dict[str, list[str]] = {
     "places-skos": ["http://purl.org/dc/terms/spatial"],
     "NUTS": ["http://purl.org/dc/terms/spatial"],
     "distribution-status-skos": ["http://www.w3.org/ns/adms#status"],
+    "licences-skos": ["http://purl.org/dc/terms/license"],
+    "access-right-skos": ["http://purl.org/dc/terms/accessRights"],
     "reference-systems": [
         "http://data.europa.eu/930/referenceSystem",
         "http://purl.org/dc/terms/conformsTo",
     ],
     # "corporatebodies-skos": ["http://purl.org/dc/terms/publisher"],
+}
+
+STEM_CLASS_PROPERTY_MAPPING: dict[str, list[tuple[str, str]]] = {
+    "conditions-for-access-and-usage": [
+        ("http://purl.org/dc/terms/RightsStatement", "http://purl.org/dc/terms/type")
+    ],
+    "adms-publisher-type": [
+        ("http://xmlns.com/foaf/0.1/Agent", "http://purl.org/dc/terms/type")
+    ],
+    "licences-skos": [
+        (
+            "http://purl.org/dc/terms/LicenseDocument",
+            "http://purl.org/dc/terms/identifier",
+        )
+    ],
 }
 
 
@@ -333,39 +351,100 @@ class VocabularyPolicy(str, Enum):
             return Requirement.RECOMMENDED
 
 
-PROPERTY_POLICY_MAPPING_VERSIONED: dict[SpecVersion, dict[str, VocabularyPolicy]] = {
+VOCABULARY_CLASS_PROPERTIES: dict[
+    SpecVersion, dict[str, dict[str, VocabularyPolicy]]
+] = {
     SpecVersion.V1_1_0: {
-        "https://w3id.org/mobilitydcat-ap#transportMode": VocabularyPolicy.OPTIONAL,
-        "https://w3id.org/mobilitydcat-ap#mobilityTheme": VocabularyPolicy.REQUIRED,
-        "https://w3id.org/mobilitydcat-ap#mobilityDataStandard": VocabularyPolicy.REQUIRED,
-        "https://w3id.org/mobilitydcat-ap#applicationLayerProtocol": VocabularyPolicy.OPTIONAL,
-        "https://w3id.org/mobilitydcat-ap#communicationMethod": VocabularyPolicy.OPTIONAL,
-        "https://w3id.org/mobilitydcat-ap#networkCoverage": VocabularyPolicy.OPTIONAL,
-        "https://w3id.org/mobilitydcat-ap#georeferencingMethod": VocabularyPolicy.REQUIRED,
-        "https://w3id.org/mobilitydcat-ap#intendedInformationService": VocabularyPolicy.OPTIONAL,
-        "https://w3id.org/mobilitydcat-ap#grammar": VocabularyPolicy.OPTIONAL,
-        "http://www.w3.org/ns/dcat#theme": VocabularyPolicy.REQUIRED,
-        "http://purl.org/dc/terms/accrualPeriodicity": VocabularyPolicy.REQUIRED,
-        "http://purl.org/dc/terms/format": VocabularyPolicy.REQUIRED,
-        "http://purl.org/dc/terms/language": VocabularyPolicy.REQUIRED,
-        "http://purl.org/dc/terms/spatial": VocabularyPolicy.REQUIRED,
-        "http://purl.org/dc/terms/conformsTo": VocabularyPolicy.OPTIONAL,
+        "http://www.w3.org/ns/dcat#Catalog": {
+            "http://purl.org/dc/terms/spatial": VocabularyPolicy.REQUIRED,
+            "http://purl.org/dc/terms/language": VocabularyPolicy.REQUIRED,
+        },
+        "http://www.w3.org/ns/dcat#Dataset": {
+            "http://purl.org/dc/terms/accrualPeriodicity": VocabularyPolicy.REQUIRED,
+            "http://purl.org/dc/terms/spatial": VocabularyPolicy.REQUIRED,
+            "https://w3id.org/mobilitydcat-ap#mobilityTheme": VocabularyPolicy.REQUIRED,
+            "https://w3id.org/mobilitydcat-ap#georeferencingMethod": VocabularyPolicy.REQUIRED,
+            "https://w3id.org/mobilitydcat-ap#networkCoverage": VocabularyPolicy.OPTIONAL,
+            "http://purl.org/dc/terms/conformsTo": VocabularyPolicy.OPTIONAL,
+            "http://www.w3.org/ns/dcat#theme": VocabularyPolicy.REQUIRED,
+            "https://w3id.org/mobilitydcat-ap#transportMode": VocabularyPolicy.OPTIONAL,
+            "https://w3id.org/mobilitydcat-ap#intendedInformationService": VocabularyPolicy.OPTIONAL,
+            "http://purl.org/dc/terms/language": VocabularyPolicy.REQUIRED,
+        },
+        "http://www.w3.org/ns/dcat#Distribution": {
+            "https://w3id.org/mobilitydcat-ap#mobilityDataStandard": VocabularyPolicy.REQUIRED,
+            "http://purl.org/dc/terms/format": VocabularyPolicy.REQUIRED,
+            "https://w3id.org/mobilitydcat-ap#applicationLayerProtocol": VocabularyPolicy.OPTIONAL,
+            "https://w3id.org/mobilitydcat-ap#communicationMethod": VocabularyPolicy.OPTIONAL,
+            "https://w3id.org/mobilitydcat-ap#grammar": VocabularyPolicy.OPTIONAL,
+        },
+        "http://www.w3.org/ns/dcat#CatalogRecord": {
+            "http://purl.org/dc/terms/language": VocabularyPolicy.REQUIRED,
+        },
+        "http://purl.org/dc/terms/RightsStatement": {
+            "http://purl.org/dc/terms/type": VocabularyPolicy.OPTIONAL,
+        },
+        "http://xmlns.com/foaf/0.1/Agent": {
+            "http://purl.org/dc/terms/type": VocabularyPolicy.OPTIONAL,
+        },
+        "http://purl.org/dc/terms/LicenseDocument": {
+            "http://purl.org/dc/terms/identifier": VocabularyPolicy.OPTIONAL,
+        },
+        "http://www.w3.org/ns/dcat#DataService": {
+            "http://purl.org/dc/terms/accessRights": VocabularyPolicy.OPTIONAL,
+        },
     },
     SpecVersion.V3_0_0: {
-        "https://w3id.org/mobilitydcat-ap#transportMode": VocabularyPolicy.AT_LEAST_1,
-        "https://w3id.org/mobilitydcat-ap#mobilityTheme": VocabularyPolicy.AT_LEAST_1,
-        "https://w3id.org/mobilitydcat-ap#mobilityDataStandard": VocabularyPolicy.AT_LEAST_1,
-        "https://w3id.org/mobilitydcat-ap#applicationLayerProtocol": VocabularyPolicy.AT_LEAST_1,
-        "https://w3id.org/mobilitydcat-ap#communicationMethod": VocabularyPolicy.RECOMMENDED,
-        "https://w3id.org/mobilitydcat-ap#networkCoverage": VocabularyPolicy.AT_LEAST_1,
-        "https://w3id.org/mobilitydcat-ap#georeferencingMethod": VocabularyPolicy.AT_LEAST_1,
-        "https://w3id.org/mobilitydcat-ap#intendedInformationService": VocabularyPolicy.AT_LEAST_1,
-        "http://www.w3.org/ns/dcat#theme": VocabularyPolicy.AT_LEAST_1,
-        "http://purl.org/dc/terms/accrualPeriodicity": VocabularyPolicy.REQUIRED,
-        "http://purl.org/dc/terms/format": VocabularyPolicy.REQUIRED,
-        "http://purl.org/dc/terms/language": VocabularyPolicy.REQUIRED,
-        "http://purl.org/dc/terms/spatial": VocabularyPolicy.RECOMMENDED,
-        "http://www.w3.org/ns/adms#status": VocabularyPolicy.REQUIRED,
-        "http://data.europa.eu/930/referenceSystem": VocabularyPolicy.REQUIRED,
+        "http://www.w3.org/ns/dcat#Catalog": {
+            "http://purl.org/dc/terms/language": VocabularyPolicy.REQUIRED,
+            "http://purl.org/dc/terms/spatial": VocabularyPolicy.RECOMMENDED,
+        },
+        "http://www.w3.org/ns/dcat#CatalogRecord": {
+            "http://purl.org/dc/terms/language": VocabularyPolicy.REQUIRED,
+        },
+        "http://www.w3.org/ns/dcat#Dataset": {
+            "http://purl.org/dc/terms/accrualPeriodicity": VocabularyPolicy.REQUIRED,
+            "http://data.europa.eu/930/referenceSystem": VocabularyPolicy.REQUIRED,
+            "http://purl.org/dc/terms/language": VocabularyPolicy.REQUIRED,
+            "https://w3id.org/mobilitydcat-ap#mobilityTheme": VocabularyPolicy.AT_LEAST_1,
+            "http://www.w3.org/ns/dcat#theme": VocabularyPolicy.AT_LEAST_1,
+            "https://w3id.org/mobilitydcat-ap#georeferencingMethod": VocabularyPolicy.AT_LEAST_1,
+            "https://w3id.org/mobilitydcat-ap#networkCoverage": VocabularyPolicy.AT_LEAST_1,
+            "https://w3id.org/mobilitydcat-ap#transportMode": VocabularyPolicy.AT_LEAST_1,
+            "https://w3id.org/mobilitydcat-ap#intendedInformationService": VocabularyPolicy.AT_LEAST_1,
+            "http://purl.org/dc/terms/spatial": VocabularyPolicy.RECOMMENDED,
+        },
+        "http://www.w3.org/ns/dcat#DatasetSeries": {
+            "http://purl.org/dc/terms/accrualPeriodicity": VocabularyPolicy.REQUIRED,
+            "https://w3id.org/mobilitydcat-ap#mobilityTheme": VocabularyPolicy.AT_LEAST_1,
+            "http://purl.org/dc/terms/spatial": VocabularyPolicy.RECOMMENDED,
+        },
+        "http://www.w3.org/ns/dcat#Distribution": {
+            "http://purl.org/dc/terms/format": VocabularyPolicy.REQUIRED,
+            "http://purl.org/dc/terms/language": VocabularyPolicy.REQUIRED,
+            "http://www.w3.org/ns/adms#status": VocabularyPolicy.REQUIRED,
+            "https://w3id.org/mobilitydcat-ap#mobilityDataStandard": VocabularyPolicy.AT_LEAST_1,
+            "https://w3id.org/mobilitydcat-ap#applicationLayerProtocol": VocabularyPolicy.AT_LEAST_1,
+            "https://w3id.org/mobilitydcat-ap#communicationMethod": VocabularyPolicy.RECOMMENDED,
+            "http://purl.org/dc/terms/license": VocabularyPolicy.RECOMMENDED,
+        },
+        "http://purl.org/dc/terms/RightsStatement": {
+            "http://purl.org/dc/terms/type": VocabularyPolicy.AT_LEAST_1,
+        },
+        "http://xmlns.com/foaf/0.1/Agent": {
+            "http://purl.org/dc/terms/type": VocabularyPolicy.RECOMMENDED,
+        },
     },
+}
+
+# External registers that cannot be enumerated statically in vocabularies.json
+ALLOWED_URI_PATTERNS: dict[str, tuple[re.Pattern[str], ...]] = {
+    "http://purl.org/dc/terms/spatial": (
+        re.compile(r"^https?://(sws\.)?geonames\.org/"),
+    ),
+}
+
+# Scheme/prefix aliases mapped to their canonical prefix stored in vocabularies.json
+URI_PREFIX_ALIASES: dict[str, str] = {
+    "https://www.opengis.net/def/crs/EPSG/": "http://www.opengis.net/def/crs/EPSG/",
 }

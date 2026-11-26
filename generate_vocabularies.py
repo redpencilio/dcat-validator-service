@@ -13,7 +13,7 @@ from pathlib import Path
 import rdflib
 from rdflib.namespace import RDF, SKOS
 
-from spec import STEM_PROPERTY_MAPPING
+from spec import STEM_CLASS_PROPERTY_MAPPING, STEM_PROPERTY_MAPPING
 
 EU_BASE = "https://op.europa.eu/o/opportal-service/euvoc-download-handler?cellarURI="
 MOB_BASE = (
@@ -55,6 +55,14 @@ REMOTE_VOCABULARY_SOURCES = {
         "url": f"{EU_BASE}http%3A%2F%2Fpublications.europa.eu%2Fresource%2Fdistribution%2Fdistribution-status%2F20260617-0%2Frdf%2Fskos_core%2Fdistribution-status-skos.rdf&fileName=distribution-status-skos.rdf",
         "format": "rdf-xml",
     },
+    "licences-skos": {
+        "url": f"{EU_BASE}http%3A%2F%2Fpublications.europa.eu%2Fresource%2Fdistribution%2Flicence%2F20260617-0%2Frdf%2Fskos_core%2Flicences-skos.rdf&fileName=licences-skos.rdf",
+        "format": "rdf-xml",
+    },
+    "access-right-skos": {
+        "url": f"{EU_BASE}http%3A%2F%2Fpublications.europa.eu%2Fresource%2Fdistribution%2Faccess-right%2F20260923-0%2Frdf%2Fskos_core%2Faccess-right-skos.rdf&fileName=access-right-skos.rdf",
+        "format": "rdf-xml",
+    },
     # "corporatebodies-skos": {
     #     "url": f"{EU_BASE}http%3A%2F%2Fpublications.europa.eu%2Fresource%2Fdistribution%2Fcorporate-body%2F20260617-0%2Frdf%2Fskos_core%2Fcorporatebodies-skos.rdf&fileName=corporatebodies-skos.rdf",
     #     "format": "rdf-xml",
@@ -62,6 +70,11 @@ REMOTE_VOCABULARY_SOURCES = {
     "NUTS": {
         "url": f"{EU_BASE}http%3A%2F%2Fpublications.europa.eu%2Fresource%2Fdistribution%2Fnuts%2F20260701-0%2Frdf%2Fskos_xl%2FNUTS.rdf&fileName=NUTS.rdf",
         "format": "rdf-xml",
+    },
+    "adms-publisher-type": {
+        "url": "https://raw.githubusercontent.com/SEMICeu/ADMS-AP/master/purl.org/ADMS_SKOS_v1.00.rdf",
+        "format": "rdf-xml",
+        "scheme": "http://purl.org/adms/publishertype/1.0",
     },
     # mobilityDCAT-AP
     "application-layer-protocol": {
@@ -72,10 +85,10 @@ REMOTE_VOCABULARY_SOURCES = {
         "url": f"{MOB_BASE}/communication-method/latest/communication-method.ttl",
         "format": "turtle",
     },
-    # "conditions-for-access-and-usage": {
-    #     "url": f"{MOB_BASE}/conditions-for-access-and-usage/latest/conditions-for-access-and-usage.ttl",
-    #     "format": "turtle",
-    # },
+    "conditions-for-access-and-usage": {
+        "url": f"{MOB_BASE}/conditions-for-access-and-usage/latest/conditions-for-access-and-usage.ttl",
+        "format": "turtle",
+    },
     "energy-fuel-type": {
         "url": f"{MOB_BASE}/energy-fuel-type/latest/energy-fuel-type.ttl",
         "format": "turtle",
@@ -106,10 +119,6 @@ REMOTE_VOCABULARY_SOURCES = {
     },
     "transport-mode": {
         "url": f"{MOB_BASE}/transport-mode/latest/transport-mode.ttl",
-        "format": "turtle",
-    },
-    "update-frequency": {
-        "url": f"{MOB_BASE}/update-frequency/latest/update-frequency.ttl",
         "format": "turtle",
     },
     # OGC - CRS NTS XML (non-SKOS: plain <identifier> list)
@@ -148,22 +157,61 @@ def parse_crs_nts_xml_identifiers(url: str) -> set[str]:
     return uris
 
 
-def parse_vocabulary_concepts(source: str | Path, rdf_format: str) -> set[str]:
+def parse_vocabulary_concepts(
+    source: str | Path, rdf_format: str, scheme_uri: str | None = None
+) -> set[str]:
     """Parses a graph from a file path or URL and returns all skos:Concept URIs."""
     g = rdflib.Graph()
     if isinstance(source, Path):
         g.parse(source.absolute(), format=rdf_format)
     else:
         g.parse(source, format=rdf_format)
-    return {str(term) for term in g.subjects(predicate=RDF.type, object=SKOS.Concept)}
+    concepts = {str(term) for term in g.subjects(predicate=RDF.type, object=SKOS.Concept)}
+    if scheme_uri:
+        scheme_ref = rdflib.URIRef(scheme_uri)
+        in_scheme = {str(term) for term in g.subjects(predicate=SKOS.inScheme, object=scheme_ref)}
+        concepts &= in_scheme
+    return concepts
+
+
+def _load_stem_concepts(stem: str, local_dir: Path) -> set[str]:
+    local_file = None
+    if local_dir.exists():
+        for ext in [".ttl", ".rdf"]:
+            candidate = local_dir / f"{stem}{ext}"
+            if candidate.exists() and candidate.stat().st_size > 0:
+                local_file = candidate
+                break
+
+    scheme_uri = REMOTE_VOCABULARY_SOURCES.get(stem, {}).get("scheme")
+    concepts: set[str] = set()
+    if local_file:
+        print(f"Parsing local file: {local_file.name}...")
+        rdf_format = "turtle" if local_file.suffix == ".ttl" else "xml"
+        concepts = parse_vocabulary_concepts(local_file, rdf_format, scheme_uri=scheme_uri)
+    elif stem in REMOTE_VOCABULARY_SOURCES:
+        meta = REMOTE_VOCABULARY_SOURCES[stem]
+        print(f"Fetching from remote: {stem} ({meta['url'][:60]}...)...")
+        if meta["format"] == "crs-nts-xml":
+            concepts = parse_crs_nts_xml_identifiers(meta["url"])
+        elif meta["format"] == "rdf-xml":
+            concepts = parse_vocabulary_concepts(meta["url"], "xml", scheme_uri=scheme_uri)
+        elif meta["format"] == "turtle":
+            concepts = parse_vocabulary_concepts(meta["url"], "turtle", scheme_uri=scheme_uri)
+    else:
+        print(f"Warning: No local file or remote URL found for '{stem}'")
+
+    print(f"  -> Found {len(concepts)} concepts for {stem}")
+    return concepts
 
 
 def generate_vocabulary_dict(
     local_dir: Path | None = None,
     output_path: Path | None = None,
-) -> dict[str, list[str]]:
+) -> dict[str, dict]:
     """
-    Generates the vocabulary dictionary mapping property URIs to lists of concept URIs.
+    Generates the vocabulary dictionary mapping property URIs (and class-scoped
+    property URIs) to lists of concept URIs.
     Prefers local files if available in local_dir, otherwise fetches directly from remote URLs.
     """
     if output_path is None:
@@ -172,49 +220,34 @@ def generate_vocabulary_dict(
     if local_dir is None:
         local_dir = Path(__file__).resolve().parent / "vocabularies"
 
-    vocabulary_dict: dict[str, set[str]] = {}
-
+    properties_dict: dict[str, set[str]] = {}
     for stem, predicates in STEM_PROPERTY_MAPPING.items():
-        # Check if local file exists
-        local_file = None
-        if local_dir.exists():
-            for ext in [".ttl", ".rdf"]:
-                candidate = local_dir / f"{stem}{ext}"
-                if candidate.exists() and candidate.stat().st_size > 0:
-                    local_file = candidate
-                    break
-
-        concepts = set()
-        if local_file:
-            print(f"Parsing local file: {local_file.name}...")
-            rdf_format = "turtle" if local_file.suffix == ".ttl" else "xml"
-            concepts = parse_vocabulary_concepts(local_file, rdf_format)
-        elif stem in REMOTE_VOCABULARY_SOURCES:
-            meta = REMOTE_VOCABULARY_SOURCES[stem]
-            print(f"Fetching from remote: {stem} ({meta['url'][:60]}...)...")
-            if meta["format"] == "crs-nts-xml":
-                concepts = parse_crs_nts_xml_identifiers(meta["url"])
-            elif meta["format"] == "rdf-xml":
-                concepts = parse_vocabulary_concepts(meta["url"], "xml")
-            elif meta["format"] == "turtle":
-                concepts = parse_vocabulary_concepts(meta["url"], "turtle")
-        else:
-            print(f"Warning: No local file or remote URL found for '{stem}'")
-
-        print(f"  -> Found {len(concepts)} concepts for {stem}")
-
+        concepts = _load_stem_concepts(stem, local_dir)
         for predicate in predicates:
-            existing = vocabulary_dict.get(predicate, set())
-            vocabulary_dict[predicate] = existing.union(concepts)
+            properties_dict[predicate] = properties_dict.get(predicate, set()).union(concepts)
 
-    # Convert sets to sorted lists for JSON serialization
-    serialized = {k: sorted(v) for k, v in sorted(vocabulary_dict.items())}
+    class_properties_dict: dict[str, dict[str, set[str]]] = {}
+    for stem, class_predicates in STEM_CLASS_PROPERTY_MAPPING.items():
+        concepts = _load_stem_concepts(stem, local_dir)
+        for class_uri, predicate in class_predicates:
+            cls_map = class_properties_dict.setdefault(class_uri, {})
+            cls_map[predicate] = cls_map.get(predicate, set()).union(concepts)
+
+    serialized = {
+        "properties": {k: sorted(v) for k, v in sorted(properties_dict.items())},
+        "class_properties": {
+            cls: {prop: sorted(vals) for prop, vals in sorted(props.items())}
+            for cls, props in sorted(class_properties_dict.items())
+        },
+    }
 
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(serialized, f, indent=2, ensure_ascii=False)
 
     print(
-        f"\nSuccessfully saved vocabularies to {output_path} ({len(serialized)} properties mapped)"
+        f"\nSuccessfully saved vocabularies to {output_path} "
+        f"({len(serialized['properties'])} properties, "
+        f"{sum(len(p) for p in serialized['class_properties'].values())} class-scoped properties)"
     )
     return serialized
 
