@@ -137,11 +137,15 @@ def parse_crs_nts_xml_identifiers(url: str) -> set[str]:
     with urllib.request.urlopen(req) as resp:
         raw = resp.read()
     root = ET.fromstring(raw)
-    return {
-        elem.text.strip()
-        for elem in root.iter(f"{{{_CRS_NTS_NS}}}identifier")
-        if elem.text and elem.text.strip()
-    }
+    uris: set[str] = set()
+    for elem in root.iter(f"{{{_CRS_NTS_NS}}}identifier"):
+        if elem.text and elem.text.strip():
+            uri = elem.text.strip()
+            # Spec §10.2.1 uses http://www.opengis.net/def/crs/EPSG/0/; OGC XML returns https://
+            if uri.startswith("https://www.opengis.net/def/crs/EPSG/"):
+                uri = "http://" + uri[len("https://") :]
+            uris.add(uri)
+    return uris
 
 
 def parse_vocabulary_concepts(source: str | Path, rdf_format: str) -> set[str]:

@@ -210,6 +210,13 @@ def get_property_violations(
 
     allowed = ALLOWED_VOCABULARIES[term_predicate]
 
+    def _is_allowed(uri: str) -> bool:
+        if uri in allowed:
+            return True
+        if uri.startswith("https://www.opengis.net/def/crs/EPSG/"):
+            return ("http://" + uri[len("https://") :]) in allowed
+        return False
+
     for s, terms_dict in resources_map.items():
         resource_has_valid_term = False
         resource_invalid_terms = set()
@@ -222,7 +229,7 @@ def get_property_violations(
                 continue
 
             # First check if the term itself is a valid URI
-            if term_type == "uri" and term_val in allowed:
+            if term_type == "uri" and _is_allowed(term_val):
                 resource_has_valid_term = True
                 continue
 
@@ -230,12 +237,12 @@ def get_property_violations(
             is_valid = False
             if identifiers:
                 for identifier in identifiers:
-                    if identifier in allowed:
+                    if _is_allowed(identifier):
                         is_valid = True
                         break
             else:
                 # If it's not a blank node and has no nested identifiers, we check the term itself
-                is_valid = term_type == "uri" and term_val in allowed
+                is_valid = term_type == "uri" and _is_allowed(term_val)
 
             if is_valid:
                 resource_has_valid_term = True
