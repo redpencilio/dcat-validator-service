@@ -27,12 +27,12 @@ from constants import (
     VOCABULARY_ANALYSIS_OPERATION,
 )
 from custom_exceptions import ResourceNotFoundError
-from smart_suggestions import SuggestionsEngine, Scorer
+from smart_suggestions import Scorer, SuggestionsEngine
 from spec import (
-    DCAT_CLASSES_VERSIONED,
-    MOBILITY_DCAT_AP_SPEC_VERSIONED,
-    PROPERTY_POLICY_MAPPING_VERSIONED,
+    ALLOWED_URI_PATTERNS,
     SEVERITY,
+    URI_PREFIX_ALIASES,
+    VOCABULARY_CLASS_PROPERTIES,
     SpecVersion,
     VocabularyPolicy,
 )
@@ -65,7 +65,36 @@ class VocabularyResult:
     class_compliances: list[ClassVocabularyCompliance] = field(default_factory=list)
 
 
-def get_vocabulary_dict() -> dict[str, set[str]] | None:
+@dataclass
+class VocabularyStore:
+    properties: dict[str, set[str]] = field(default_factory=dict)
+    class_properties: dict[str, dict[str, set[str]]] = field(default_factory=dict)
+
+    def get_allowed(self, dcat_class: str, term_predicate: str) -> set[str]:
+        cls_map = self.class_properties.get(dcat_class, {})
+        if term_predicate in cls_map:
+            return cls_map[term_predicate]
+        return self.properties[term_predicate]
+
+    def to_flat_dict(self) -> dict[str, set[str]]:
+        flat = dict(self.properties)
+        for cls_uri, props in self.class_properties.items():
+            for prop_uri, vals in props.items():
+                flat[f"{cls_uri} {prop_uri}"] = vals
+        return flat
+
+
+def _parse_vocab_store(raw: dict) -> VocabularyStore:
+    return VocabularyStore(
+        properties={k: set(v) for k, v in raw.get("properties", {}).items()},
+        class_properties={
+            cls: {prop: set(vals) for prop, vals in props.items()}
+            for cls, props in raw.get("class_properties", {}).items()
+        },
+    )
+
+
+def get_vocabulary_dict() -> VocabularyStore | None:
     vocab_json_path = Path(
         os.environ.get(
             "VOCABULARIES_JSON", Path(__file__).resolve().parent / "vocabularies.json"
@@ -80,7 +109,7 @@ def get_vocabulary_dict() -> dict[str, set[str]] | None:
             from generate_vocabularies import generate_vocabulary_dict
 
             raw_dict = generate_vocabulary_dict(output_path=vocab_json_path)
-            return {k: set(v) for k, v in raw_dict.items()}
+            return _parse_vocab_store(raw_dict)
         except Exception as e:
             print(f"Error generating vocabulary dictionary: {e}")
             return None
@@ -89,14 +118,16 @@ def get_vocabulary_dict() -> dict[str, set[str]] | None:
     try:
         with open(vocab_json_path, "r", encoding="utf-8") as f:
             cached_dict = json.load(f)
-        return {k: set(v) for k, v in cached_dict.items()}
+        return _parse_vocab_store(cached_dict)
     except Exception as e:
         print(f"Error loading {vocab_json_path}: {e}")
         return None
 
 
 ALLOWED_VOCABULARIES = get_vocabulary_dict()
-suggestions_engine = SuggestionsEngine(ALLOWED_VOCABULARIES or {})
+suggestions_engine = SuggestionsEngine(
+    ALLOWED_VOCABULARIES.to_flat_dict() if ALLOWED_VOCABULARIES else {}
+)
 suggestions_engine.vectorize()  # Can be skipped if not using cosine distance (but fuzzy finding)
 
 
@@ -107,21 +138,22 @@ def compute_vocabulary_compliance(
     class_compliances: list[ClassVocabularyCompliance] = []
     grand_total_violations = 0
 
-    for dcat_class in DCAT_CLASSES_VERSIONED[dcat_ap_version]:
+    if not ALLOWED_VOCABULARIES:
+        raise ResourceNotFoundError("Controlled vocabulary data could not be found.")
+
+    for dcat_class, prop_policies in VOCABULARY_CLASS_PROPERTIES[
+        dcat_ap_version
+    ].items():
         class_vocabulary_rules: list[VocabularyRuleSumary] = []
 
         total_entities = count_entities(data_graph_uri, dcat_class)
 
-        if not ALLOWED_VOCABULARIES:
-            raise ResourceNotFoundError(
-                "Controlled vocabulary data could not be found."
-            )
-        for term in ALLOWED_VOCABULARIES:
+        for term_predicate, vocab_policy in prop_policies.items():
             violations = get_property_violations(
                 data_graph_uri,
                 dcat_class=dcat_class,
-                term_predicate=term,
-                dcat_ap_version=dcat_ap_version,
+                term_predicate=term_predicate,
+                vocab_policy=vocab_policy,
             )
             class_vocabulary_rules.extend(violations)
 
@@ -145,25 +177,28 @@ def compute_vocabulary_compliance(
     return result
 
 
+def is_allowed_term_uri(term_predicate: str, uri: str, allowed: set[str]) -> bool:
+    """Check whether `uri` satisfies the controlled vocabulary for `term_predicate`."""
+    if uri in allowed:
+        return True
+    for alias_prefix, canonical_prefix in URI_PREFIX_ALIASES.items():
+        if (
+            uri.startswith(alias_prefix)
+            and (canonical_prefix + uri[len(alias_prefix) :]) in allowed
+        ):
+            return True
+    for pattern in ALLOWED_URI_PATTERNS.get(term_predicate, ()):
+        if pattern.match(uri):
+            return True
+    return False
+
+
 def get_property_violations(
     data_graph_uri: str,
     dcat_class: str,
     term_predicate: str,
-    dcat_ap_version: SpecVersion,
+    vocab_policy: VocabularyPolicy,
 ) -> list[VocabularyRuleSumary]:
-    # Check if this property is applicable to this DCAT class
-    class_reqs = MOBILITY_DCAT_AP_SPEC_VERSIONED[dcat_ap_version].get(dcat_class, {})
-    severity = None
-    for req, props in class_reqs.items():
-        if term_predicate in props:
-            severity = SEVERITY[req]
-            break
-
-    vocab_policy = PROPERTY_POLICY_MAPPING_VERSIONED[dcat_ap_version].get(
-        term_predicate
-    )
-    if not vocab_policy:
-        return []
     severity = SEVERITY[vocab_policy.to_severity()]
 
     q = f"""
@@ -174,7 +209,9 @@ def get_property_violations(
                 ?s a {sparql_escape_uri(dcat_class)};
                     {sparql_escape_uri(term_predicate)} ?term.
                 OPTIONAL {{
-                    ?term dct:identifier ?identifier .
+                    {{ ?term dct:identifier ?identifier . }}
+                    UNION
+                    {{ ?term dct:conformsTo ?identifier . }}
                     FILTER(isIRI(?identifier))
                 }}
             }}
@@ -208,14 +245,7 @@ def get_property_violations(
     if not ALLOWED_VOCABULARIES:
         raise ResourceNotFoundError("Controlled vocabulary data could not be found.")
 
-    allowed = ALLOWED_VOCABULARIES[term_predicate]
-
-    def _is_allowed(uri: str) -> bool:
-        if uri in allowed:
-            return True
-        if uri.startswith("https://www.opengis.net/def/crs/EPSG/"):
-            return ("http://" + uri[len("https://") :]) in allowed
-        return False
+    allowed = ALLOWED_VOCABULARIES.get_allowed(dcat_class, term_predicate)
 
     for s, terms_dict in resources_map.items():
         resource_has_valid_term = False
@@ -229,7 +259,9 @@ def get_property_violations(
                 continue
 
             # First check if the term itself is a valid URI
-            if term_type == "uri" and _is_allowed(term_val):
+            if term_type == "uri" and is_allowed_term_uri(
+                term_predicate, term_val, allowed
+            ):
                 resource_has_valid_term = True
                 continue
 
@@ -237,12 +269,14 @@ def get_property_violations(
             is_valid = False
             if identifiers:
                 for identifier in identifiers:
-                    if _is_allowed(identifier):
+                    if is_allowed_term_uri(term_predicate, identifier, allowed):
                         is_valid = True
                         break
             else:
                 # If it's not a blank node and has no nested identifiers, we check the term itself
-                is_valid = term_type == "uri" and _is_allowed(term_val)
+                is_valid = term_type == "uri" and is_allowed_term_uri(
+                    term_predicate, term_val, allowed
+                )
 
             if is_valid:
                 resource_has_valid_term = True
@@ -274,7 +308,7 @@ def get_property_violations(
         allowed,
         limit=3,
         cutoff=50,
-        scorer=Scorer.PREVEC_COSINE
+        scorer=Scorer.PREVEC_COSINE,
     )
 
     return [
